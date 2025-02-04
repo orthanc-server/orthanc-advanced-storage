@@ -171,7 +171,7 @@ endif()
 if (STANDALONE_BUILD)
   add_definitions(-DORTHANC_STANDALONE=1)
   set(ADDITIONAL_RESOURCES
-    DEFAULT_CONFIGURATION  ${CMAKE_SOURCE_DIR}/Plugin/DefaultConfiguration.json
+    DEFAULT_CONFIGURATION  ${CMAKE_SOURCE_DIR}/Plugin/Configuration.json
     )
 else()
   add_definitions(-DORTHANC_STANDALONE=0)

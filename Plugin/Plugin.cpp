@@ -107,14 +107,16 @@ fs::path GetLegacyRelativePath(const std::string& uuid)
   return path;
 }
 
-fs::path GetPath(const std::string& uuid, const std::string& customDataString)
+fs::path GetPath(const std::string& uuid,
+                 const void* customDataBuffer,
+                 uint64_t customDataSize)
 {
   fs::path path;
 
-  if (!customDataString.empty())
+  if (customDataSize != 0)
   {
     Json::Value customData;
-    Orthanc::Toolbox::ReadJson(customData, customDataString);
+    Orthanc::Toolbox::ReadJson(customData, customDataBuffer, customDataSize);
 
     if (customData["v"].asInt() == 1)   // Version
     {
@@ -406,91 +408,83 @@ fs::path GetRelativePathFromTags(const Json::Value& tags, const char* uuid, Orth
 
 
 OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
-                                             const char* uuid,
-                                             const Json::Value& tags,
-                                             const void* content,
-                                             int64_t size,
-                                             OrthancPluginContentType type,
-                                             bool isCompressed)
-{
-  fs::path relativePath = GetRelativePathFromTags(tags, uuid, type, isCompressed);
-  fs::path rootPath = GetRootPath();
-  fs::path path = rootPath / relativePath;
-
-  // check that the final path is not 'above' the root path (this could happen if e.g., a PatientName is ../../../../toto)
-  // fs::canonical() can not be used for that since the file needs to exist
-  // so far, we'll just forbid path containing '..' since they might be suspicious
-  if (path.string().find("..") != std::string::npos)
-  {
-    relativePath = GetLegacyRelativePath(uuid);
-    fs::path legacyPath = rootPath / relativePath;
-    LOG(WARNING) << "Advanced Storage - WAS02 - Path is suspicious since it contains '..': '" << path.string() << "' will be stored in '" << legacyPath << "'";
-    path = legacyPath;
-  }
-
-  // check path length !!!!!, if too long, go back to legacy path and issue a warning
-  if (path.string().size() > maxPathLength_)
-  {
-    relativePath = GetLegacyRelativePath(uuid);
-    fs::path legacyPath = rootPath / relativePath;
-    LOG(WARNING) << "Advanced Storage - WAS01 - Path is too long: '" << path.string() << "' will be stored in '" << legacyPath << "'";
-    path = legacyPath;
-  }
-
-  if (fs::exists(path))
-  {
-    // Extremely unlikely case if uuid is included in the path: This Uuid has already been created
-    // in the past.
-    throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError, "Advanced Storage - path already exists");
-
-    // TODO for the future: handle duplicates path (e.g: there's no uuid in the path and we are uploading the same file again)
-  }
-
-  std::string customDataString;
-  GetCustomData(customDataString, relativePath);
-
-  LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
-
-
-  if (fs::exists(path.parent_path()))
-  {
-    if (!fs::is_directory(path.parent_path()))
-    {
-      throw Orthanc::OrthancException(Orthanc::ErrorCode_DirectoryOverFile);
-    }
-  }
-  else
-  {
-    if (!fs::create_directories(path.parent_path()))
-    {
-      throw Orthanc::OrthancException(Orthanc::ErrorCode_FileStorageCannotWrite);
-    }
-  }
-
-  Orthanc::SystemToolbox::WriteFile(content, size, path.string(), fsyncOnWrite_);
-
-  OrthancPluginCreateMemoryBuffer(OrthancPlugins::GetGlobalContext(), customData, customDataString.size());
-  memcpy(customData->data, customDataString.data(), customDataString.size());
-
-  return OrthancPluginErrorCode_Success;
-
-}
-
-OrthancPluginErrorCode StorageCreateInstance(OrthancPluginMemoryBuffer* customData,
-                                             const char* uuid,
-                                             const OrthancPluginDicomInstance*  instance,
-                                             const void* content,
-                                             int64_t size,
-                                             OrthancPluginContentType type,
-                                             bool isCompressed)
+                                     const char* uuid,
+                                     const void* content,
+                                     uint64_t size,
+                                     OrthancPluginContentType type,
+                                     OrthancPluginCompressionType compressionType,
+                                     const OrthancPluginDicomInstance* dicomInstance)
 {
   try
   {
-    OrthancPlugins::DicomInstance dicomInstance(instance);
     Json::Value tags;
-    dicomInstance.GetSimplifiedJson(tags);
 
-    return StorageCreate(customData, uuid, tags, content, size, type, isCompressed);
+    if (dicomInstance != NULL)
+    {
+      OrthancPlugins::DicomInstance dicom(dicomInstance);
+      dicom.GetSimplifiedJson(tags);
+    }
+
+    const bool isCompressed = (compressionType != OrthancPluginCompressionType_None);
+    fs::path relativePath = GetRelativePathFromTags(tags, uuid, type, isCompressed);
+    fs::path rootPath = GetRootPath();
+    fs::path path = rootPath / relativePath;
+
+    // check that the final path is not 'above' the root path (this could happen if e.g., a PatientName is ../../../../toto)
+    // fs::canonical() can not be used for that since the file needs to exist
+    // so far, we'll just forbid path containing '..' since they might be suspicious
+    if (path.string().find("..") != std::string::npos)
+    {
+      relativePath = GetLegacyRelativePath(uuid);
+      fs::path legacyPath = rootPath / relativePath;
+      LOG(WARNING) << "Advanced Storage - WAS02 - Path is suspicious since it contains '..': '" << path.string() << "' will be stored in '" << legacyPath << "'";
+      path = legacyPath;
+    }
+
+    // check path length !!!!!, if too long, go back to legacy path and issue a warning
+    if (path.string().size() > maxPathLength_)
+    {
+      relativePath = GetLegacyRelativePath(uuid);
+      fs::path legacyPath = rootPath / relativePath;
+      LOG(WARNING) << "Advanced Storage - WAS01 - Path is too long: '" << path.string() << "' will be stored in '" << legacyPath << "'";
+      path = legacyPath;
+    }
+
+    if (fs::exists(path))
+    {
+      // Extremely unlikely case if uuid is included in the path: This Uuid has already been created
+      // in the past.
+      throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError, "Advanced Storage - path already exists");
+
+      // TODO for the future: handle duplicates path (e.g: there's no uuid in the path and we are uploading the same file again)
+    }
+
+    std::string customDataString;
+    GetCustomData(customDataString, relativePath);
+
+    LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
+
+
+    if (fs::exists(path.parent_path()))
+    {
+      if (!fs::is_directory(path.parent_path()))
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_DirectoryOverFile);
+      }
+    }
+    else
+    {
+      if (!fs::create_directories(path.parent_path()))
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_FileStorageCannotWrite);
+      }
+    }
+
+    Orthanc::SystemToolbox::WriteFile(content, size, path.string(), fsyncOnWrite_);
+
+    OrthancPluginCreateMemoryBuffer(OrthancPlugins::GetGlobalContext(), customData, customDataString.size());
+    memcpy(customData->data, customDataString.data(), customDataString.size());
+    return OrthancPluginErrorCode_Success;
   }
   catch (Orthanc::OrthancException& e)
   {
@@ -500,47 +494,16 @@ OrthancPluginErrorCode StorageCreateInstance(OrthancPluginMemoryBuffer* customDa
   {
     return OrthancPluginErrorCode_StorageAreaPlugin;
   }
-
-  return OrthancPluginErrorCode_Success;
 }
 
-
-OrthancPluginErrorCode StorageCreateAttachment(OrthancPluginMemoryBuffer* customData,
-                                               const char* uuid,
-                                               const char* resourceId,
-                                               OrthancPluginResourceType resourceType,
-                                               const void* content,
-                                               int64_t size,
-                                               OrthancPluginContentType type,
-                                               bool isCompressed)
-{
-  try
-  {
-    LOG(INFO) << "Creating attachment \"" << uuid << "\"";
-
-    //TODO_CUSTOM_DATA: get tags from the Rest API...
-    Json::Value tags;
-
-    return StorageCreate(customData, uuid, tags, content, size, type, isCompressed);
-  }
-  catch (Orthanc::OrthancException& e)
-  {
-    return static_cast<OrthancPluginErrorCode>(e.GetErrorCode());
-  }
-  catch (...)
-  {
-    return OrthancPluginErrorCode_StorageAreaPlugin;
-  }
-
-  return OrthancPluginErrorCode_Success;
-}
 
 OrthancPluginErrorCode StorageReadWhole(OrthancPluginMemoryBuffer64* target,
                                         const char* uuid,
-                                        const char* customData,
-                                        OrthancPluginContentType type)
+                                        OrthancPluginContentType type,
+                                        const void* customData,
+                                        uint64_t customDataSize)
 {
-  std::string path = GetPath(uuid, customData).string();
+  std::string path = GetPath(uuid, customData, customDataSize).string();
 
   LOG(INFO) << "Advanced Storage - Reading whole attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path + ")";
 
@@ -589,13 +552,14 @@ OrthancPluginErrorCode StorageReadWhole(OrthancPluginMemoryBuffer64* target,
 }
 
 
-OrthancPluginErrorCode StorageReadRange (OrthancPluginMemoryBuffer64* target,
-                                         const char* uuid,
-                                         const char* customData,
-                                         OrthancPluginContentType type,
-                                         uint64_t rangeStart)
+OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
+                                        const char* uuid,
+                                        OrthancPluginContentType type,
+                                        uint64_t rangeStart,
+                                        const void* customData,
+                                        uint64_t customDataSize)
 {
-  std::string path = GetPath(uuid, customData).string();
+  std::string path = GetPath(uuid, customData, customDataSize).string();
 
   LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path + ")";
 
@@ -632,11 +596,12 @@ OrthancPluginErrorCode StorageReadRange (OrthancPluginMemoryBuffer64* target,
 }
 
 
-OrthancPluginErrorCode StorageRemove (const char* uuid,
-                                      const char* customData,
-                                      OrthancPluginContentType type)
+OrthancPluginErrorCode StorageRemove(const char* uuid,
+                                     OrthancPluginContentType type,
+                                     const void* customData,
+                                     uint64_t customDataSize)
 {
-  fs::path path = GetPath(uuid, customData);
+  fs::path path = GetPath(uuid, customData, customDataSize);
 
   LOG(INFO) << "Advanced Storage - Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
 
@@ -805,7 +770,7 @@ extern "C"
         }
       }
 
-      OrthancPluginRegisterStorageArea3(context, StorageCreateInstance, StorageCreateAttachment, StorageReadWhole, StorageReadRange, StorageRemove);
+      OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadWhole, StorageReadRange, StorageRemove);
     }
     else
     {

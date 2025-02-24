@@ -16,7 +16,7 @@
  *    - Register all its REST callbacks using ::OrthancPluginRegisterRestCallback().
  *    - Possibly register its callback for received DICOM instances using ::OrthancPluginRegisterOnStoredInstanceCallback().
  *    - Possibly register its callback for changes to the DICOM store using ::OrthancPluginRegisterOnChangeCallback().
- *    - Possibly register a custom storage area using ::OrthancPluginRegisterStorageArea2().
+ *    - Possibly register a custom storage area using ::OrthancPluginRegisterStorageArea3().
  *    - Possibly register a custom database back-end area using OrthancPluginRegisterDatabaseBackendV4().
  *    - Possibly register a handler for C-Find SCP using OrthancPluginRegisterFindCallback().
  *    - Possibly register a handler for C-Find SCP against DICOM worklists using OrthancPluginRegisterWorklistCallback().
@@ -492,7 +492,7 @@ extern "C"
     _OrthancPluginService_RegisterIncomingCStoreInstanceFilter = 1017,  /* New in Orthanc 1.10.0 */
     _OrthancPluginService_RegisterReceivedInstanceCallback = 1018,  /* New in Orthanc 1.10.0 */
     _OrthancPluginService_RegisterWebDavCollection = 1019,     /* New in Orthanc 1.10.1 */
-    _OrthancPluginService_RegisterStorageArea3 = 1020,         /* New in Orthanc 1.12.0 */
+    _OrthancPluginService_RegisterStorageArea3 = 1020,         /* New in Orthanc 1.12.7 */
 
     /* Sending answers to REST calls */
     _OrthancPluginService_AnswerBuffer = 2000,
@@ -792,6 +792,7 @@ extern "C"
     OrthancPluginCompressionType_ZlibWithSize = 1,  /*!< zlib, prefixed with uncompressed size (uint64_t) */
     OrthancPluginCompressionType_Gzip = 2,          /*!< Standard gzip compression */
     OrthancPluginCompressionType_GzipWithSize = 3,  /*!< gzip, prefixed with uncompressed size (uint64_t) */
+    OrthancPluginCompressionType_None = 4,          /*!< No compression (new in Orthanc 1.12.7) */
 
     _OrthancPluginCompressionType_INTERNAL = 0x7fffffff
   } OrthancPluginCompressionType;
@@ -1368,8 +1369,7 @@ extern "C"
    * @param type The content type corresponding to this file. 
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
-   * @deprecated New plugins should use OrthancPluginStorageReadWhole2 and OrthancPluginStorageReadRange2
-   * 
+   *
    * @warning The "content" buffer *must* have been allocated using
    * the "malloc()" function of your C standard library (i.e. nor
    * "new[]", neither a pointer to a buffer). The "free()" function of
@@ -1443,54 +1443,31 @@ extern "C"
 
 
 
-
-  /**
-   * @brief Callback for writing to the storage area.
-   *
-   * Signature of a callback function that is triggered when Orthanc writes an instance to the storage area.
-   *
-   * @param customData The custom data of the attachment (out)
-   * @param uuid The UUID of the file.
-   * @param instance The DICOM instance being stored.
-   * @param content The content of the file (might be compressed data, hence the need for the DICOM instance arg to access tags).
-   * @param size The size of the file.
-   * @param type The content type corresponding to this file. 
-   * @return 0 if success, other value if error.
-   * @ingroup Callbacks
-   **/
-  typedef OrthancPluginErrorCode (*OrthancPluginStorageCreateInstance) (
-    OrthancPluginMemoryBuffer* customData,
-    const char* uuid,
-    const OrthancPluginDicomInstance*  instance,
-    const void* content,
-    int64_t size,
-    OrthancPluginContentType type,
-    bool isCompressed);
-
   /**
    * @brief Callback for writing to the storage area.
    *
    * Signature of a callback function that is triggered when Orthanc writes a file to the storage area.
    *
-   * @param customData The custom data of the attachment (out)
+   * @param customData Custom, plugin-specific data associated with the attachment (out).
+   * It must be allocated by the plugin using OrthancPluginCreateMemoryBuffer64(). The core of Orthanc will free it.
    * @param uuid The UUID of the file.
-   * @param resourceId The resource ID the file is attached to.
-   * @param resourceType The resource Type the file is attached to.
-   * @param content The content of the file (might be compressed data, hence the need for the DICOM instance arg to access tags).
+   * @param content The content of the file (might be compressed data).
    * @param size The size of the file.
-   * @param type The content type corresponding to this file. 
+   * @param type The content type corresponding to this file.
+   * @param compressionType The compression algorithm used to encode `content` (the absence of compression
+   * is indicated using `OrthancPluginCompressionType_None`).
+   * @param dicomInstance The DICOM instance being stored. Equals `NULL` if not storing a DICOM instance.
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
-  typedef OrthancPluginErrorCode (*OrthancPluginStorageCreateAttachment) (
+  typedef OrthancPluginErrorCode (*OrthancPluginStorageCreate2) (
     OrthancPluginMemoryBuffer* customData,
     const char* uuid,
-    const char* resourceId,
-    OrthancPluginResourceType resourceType,
     const void* content,
-    int64_t size,
+    uint64_t size,
     OrthancPluginContentType type,
-    bool isCompressed);
+    OrthancPluginCompressionType compressionType,
+    const OrthancPluginDicomInstance* dicomInstance);
 
 
 
@@ -1504,14 +1481,15 @@ extern "C"
    * plugin using OrthancPluginCreateMemoryBuffer64(). The core of Orthanc will free it.
    * @param uuid The UUID of the file of interest.
    * @param customData The custom data of the file to be removed.
-   * @param type The content type corresponding to this file. 
+   * @param type The content type corresponding to this file.
    * @ingroup Callbacks
    **/
   typedef OrthancPluginErrorCode (*OrthancPluginStorageReadWhole2) (
     OrthancPluginMemoryBuffer64* target,
     const char* uuid,
-    const char* customData,
-    OrthancPluginContentType type);
+    OrthancPluginContentType type,
+    const void* customData,
+    uint64_t customDataSize);
 
 
 
@@ -1527,7 +1505,7 @@ extern "C"
    * of interest corresponds to the size of this buffer.
    * @param uuid The UUID of the file of interest.
    * @param customData The custom data of the file to be removed.
-   * @param type The content type corresponding to this file. 
+   * @param type The content type corresponding to this file.
    * @param rangeStart Start position of the requested range in the file.
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
@@ -1535,9 +1513,10 @@ extern "C"
   typedef OrthancPluginErrorCode (*OrthancPluginStorageReadRange2) (
     OrthancPluginMemoryBuffer64* target,
     const char* uuid,
-    const char* customData,
     OrthancPluginContentType type,
-    uint64_t rangeStart);
+    uint64_t rangeStart,
+    const void* customData,
+    uint64_t customDataSize);
 
 
 
@@ -1548,14 +1527,15 @@ extern "C"
    *
    * @param uuid The UUID of the file to be removed.
    * @param customData The custom data of the file to be removed.
-   * @param type The content type corresponding to this file. 
+   * @param type The content type corresponding to this file.
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
   typedef OrthancPluginErrorCode (*OrthancPluginStorageRemove2) (
     const char* uuid,
-    const char* customData,
-    OrthancPluginContentType type);
+    OrthancPluginContentType type,
+    const void* customData,
+    uint64_t customDataSize);
 
 
   /**
@@ -3439,7 +3419,7 @@ extern "C"
    * @param read The callback function to read a file from the custom storage area.
    * @param remove The callback function to remove a file from the custom storage area.
    * @ingroup Callbacks
-   * @deprecated Please use OrthancPluginRegisterStorageArea2()
+   * @deprecated New plugins should use OrthancPluginRegisterStorageArea3()
    **/
   ORTHANC_PLUGIN_DEPRECATED ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterStorageArea(
     OrthancPluginContext*       context,
@@ -3694,7 +3674,7 @@ extern "C"
    * @param plugin Identifier of your plugin (it must match "OrthancPluginGetName()").
    * @param description The description.
    **/
-  ORTHANC_PLUGIN_INLINE void Orthan   cPluginSetDescription2(
+  ORTHANC_PLUGIN_INLINE void OrthancPluginSetDescription2(
     OrthancPluginContext*  context,
     const char*            plugin,
     const char*            description)
@@ -9029,6 +9009,7 @@ extern "C"
    * If this feature is not supported by the plugin, this value can be set to NULL.
    * @param remove The callback function to remove a file from the custom storage area.
    * @ingroup Callbacks
+   * @deprecated New plugins should use OrthancPluginRegisterStorageArea3()
    **/
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterStorageArea2(
     OrthancPluginContext*          context,
@@ -9482,11 +9463,10 @@ extern "C"
 
   typedef struct
   {
-    OrthancPluginStorageCreateInstance       createInstance;
-    OrthancPluginStorageCreateAttachment     createAttachment;
-    OrthancPluginStorageReadWhole2    readWhole;
-    OrthancPluginStorageReadRange2    readRange;
-    OrthancPluginStorageRemove2       remove;
+    OrthancPluginStorageCreate2     create;
+    OrthancPluginStorageReadWhole2  readWhole;
+    OrthancPluginStorageReadRange2  readRange;
+    OrthancPluginStorageRemove2     remove;
   } _OrthancPluginRegisterStorageArea3;
 
   /**
@@ -9496,7 +9476,7 @@ extern "C"
    * built-in way Orthanc stores its files on the filesystem. This
    * function must be called during the initialization of the plugin,
    * i.e. inside the OrthancPluginInitialize() public function.
-   * 
+   *
    * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
    * @param create The callback function to store a file on the custom storage area.
    * @param readWhole The callback function to read a whole file from the custom storage area.
@@ -9506,18 +9486,14 @@ extern "C"
    * @ingroup Callbacks
    **/
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterStorageArea3(
-    OrthancPluginContext*             context,
-    // OrthancPluginStorageGetCustomData getCustomData,
-    OrthancPluginStorageCreateInstance         createInstance,
-    OrthancPluginStorageCreateAttachment       createAttachement,
-    OrthancPluginStorageReadWhole2    readWhole,
-    OrthancPluginStorageReadRange2    readRange,
-    OrthancPluginStorageRemove2       remove)
+    OrthancPluginContext*           context,
+    OrthancPluginStorageCreate2     create,
+    OrthancPluginStorageReadWhole2  readWhole,
+    OrthancPluginStorageReadRange2  readRange,
+    OrthancPluginStorageRemove2     remove)
   {
     _OrthancPluginRegisterStorageArea3 params;
-    // params.getCustomData = getCustomData;
-    params.createAttachment = createAttachement;
-    params.createInstance = createInstance;
+    params.create = create;
     params.readWhole = readWhole;
     params.readRange = readRange;
     params.remove = remove;

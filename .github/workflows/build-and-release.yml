@@ -36,7 +36,7 @@ jobs:
   build:
     name: ${{ matrix.config.os }}-build
     runs-on: ${{ matrix.config.os }}
-    needs: [pre-build, build-web-app]
+    needs: [pre-build]
     strategy:
       fail-fast: false
       matrix:

@@ -16,7 +16,7 @@
 
       // The storage on which new data is stored.
       // There's currently no automatic changes of disks
-      "CurrentStorage" : "2"
+      "CurrentWriteStorage" : "2"
     },
 
     // Defines the storage structure and file namings.  

@@ -50,7 +50,7 @@ namespace fs = boost::filesystem;
 fs::path rootPath_;
 bool multipleStoragesEnabled_ = false;
 std::map<std::string, fs::path> rootPaths_;
-std::string currentStorageId_;
+std::string currentWriteStorageId_;
 std::string namingScheme_;
 std::string otherAttachmentsPrefix_;
 bool fsyncOnWrite_ = true;
@@ -61,7 +61,7 @@ fs::path GetRootPath()
 {
   if (multipleStoragesEnabled_)
   {
-    return rootPaths_[currentStorageId_];
+    return rootPaths_[currentWriteStorageId_];
   }
 
   return rootPath_;
@@ -173,7 +173,7 @@ void GetCustomData(std::string& output, const fs::path& path)
 
   if (multipleStoragesEnabled_)
   {
-    customDataJson["s"] = currentStorageId_;  // Storage id
+    customDataJson["s"] = currentWriteStorageId_;  // Storage id
   }
 
   return Orthanc::Toolbox::WriteFastJson(output, customDataJson);
@@ -729,7 +729,7 @@ extern "C"
         multipleStoragesEnabled_ = true;
         const Json::Value& multipleStoragesJson = pluginJson["MultipleStorages"];
         
-        if (multipleStoragesJson.isMember("Storages") && multipleStoragesJson.isObject() && multipleStoragesJson.isMember("CurrentStorage") && multipleStoragesJson["CurrentStorage"].isString())
+        if (multipleStoragesJson.isMember("Storages") && multipleStoragesJson.isObject() && multipleStoragesJson.isMember("CurrentWriteStorage") && multipleStoragesJson["CurrentWriteStorage"].isString())
         {
           const Json::Value& storagesJson = multipleStoragesJson["Storages"];
           Json::Value::Members storageIds = storagesJson.getMemberNames();
@@ -758,15 +758,15 @@ extern "C"
             }
           }
 
-          currentStorageId_ = multipleStoragesJson["CurrentStorage"].asString();
+          currentWriteStorageId_ = multipleStoragesJson["CurrentWriteStorage"].asString();
 
-          if (rootPaths_.find(currentStorageId_) == rootPaths_.end())
+          if (rootPaths_.find(currentWriteStorageId_) == rootPaths_.end())
           {
-            LOG(ERROR) << "AdvancedStorage - CurrentStorage is not defined in Storages list: " << currentStorageId_;
+            LOG(ERROR) << "AdvancedStorage - CurrentWriteStorage is not defined in Storages list: " << currentWriteStorageId_;
             return -1;
           }
 
-          LOG(WARNING) << "AdvancedStorage - multiple storages enabled.  Current storage : " << rootPaths_[currentStorageId_].string();
+          LOG(WARNING) << "AdvancedStorage - multiple storages enabled.  Current Write storage : " << rootPaths_[currentWriteStorageId_].string();
         }
       }
 

@@ -1,17 +1,13 @@
 - add unit test project
 
 TODO_CUSTOM_DATA branch
-- add REVISIONS in AttachedFiles + Metadata in SQLite since we change the DB schema
 - add revisions and customData in all Database plugins
 - refuse to instantiate a PluginStorage3 if a DBv4 is not instantiated !
 - handle all TODO_CUSTOM_DATA
 - check /attachments/...  routes for path returned
 - AdvancedStoragePlugin 
   - show warning if a tag is missing when generating the path from tags (+ option to disable this warning)
-  - generate path from tags from resource (CreateAttachment)
-  - add an instanceId or parentSeriesId arg in CreateInstance ? 
   - implement a 'legacy' root path to group all files with missing tags or path too long
-  - avoid error AdvancedStorage - Path to the default storage area should be an absolute path '"OrthancStorage"' when using PG and no StorageDirectory has been defined
   - document that, once you have used the AdvancedStoragePlugin and stored DICOM files, you can not downgrade Orthanc to a previous Orthanc
     without loosing access to the DICOM files
   - write integration test for advanced-storage: 
@@ -20,6 +16,50 @@ TODO_CUSTOM_DATA branch
     - launch 1.12.7 with advanced-storage plugin with a non default namingScheme
     - upload 1 file
     - access + delete initial file
+- share code to compute path from tags between S3 & AdvancedStoragePlugin 
+- test a reconstruct of an adopted file (after IngestTranscoding change -> the file shall not be overwritten)
+
+Extend SDK:
+- AdoptAttachment():
+  IN: - buffer
+      - buffer size
+      - customData to store
+      - FileType (default = dicom)
+      - resourceId (if FileType is not dicom)
+      - resourceLevel (if FileType is not dicom)
+TODO: add pixelDataOffset which would allow to pass only the DICOM TAGS without pixels data ...
+  OUT: - resourceId (e.g. in case an instance has been created)
+       - attachment uuid
+
+If we want the plugin to be able to move files around, it needs to be able to update the AttachedFiles table
+- GetAttachmentInfo():
+  IN: - uuid
+  OUT: - FileType
+       - CompressionType
+       - CustomData
+       - Revision
+       - CompressedSize
+       - UncompressedSize
+       - CompressedMD5
+       - UncompressedMD5
+
+- UpdateAttachmentInfo():
+  IN: - uuid
+      - FileType
+      - CompressionType
+      - CustomData
+      - Revision
+      - CompressedSize
+      - UncompressedSize
+      - CompressedMD5
+      - UncompressedMD5
+  OUT: - new uuid ??? or same uuid ?
+
+
+
+Test commands:
+curl http://localhost:8044/tools/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm", "PixelDataOffset": 2152}'
+
 
 - write integration test for transitions from one DB to the other (for each DB plugin):
   - launch 1.11.2, 

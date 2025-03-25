@@ -130,62 +130,6 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
 }
 
 
-OrthancPluginErrorCode StorageReadWhole(OrthancPluginMemoryBuffer64* target,
-                                        const char* uuid,
-                                        OrthancPluginContentType type,
-                                        const void* customData,
-                                        uint64_t customDataSize)
-{
-  CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
-  std::string path = cd.GetAbsolutePath().string();
-
-  LOG(INFO) << "Advanced Storage - Reading whole attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path + ")";
-
-  if (!Orthanc::SystemToolbox::IsRegularFile(path))
-  {
-    LOG(ERROR) << "The path does not point to a regular file: " << path;
-    return OrthancPluginErrorCode_InexistentFile;
-  }
-
-  try
-  {
-    fs::ifstream f;
-    f.open(path, std::ifstream::in | std::ifstream::binary);
-    if (!f.good())
-    {
-      LOG(ERROR) << "The path does not point to a regular file: " << path;
-      return OrthancPluginErrorCode_InexistentFile;
-    }
-
-    // get file size
-    f.seekg(0, std::ios::end);
-    std::streamsize fileSize = f.tellg();
-    f.seekg(0, std::ios::beg);
-
-    // The ReadWhole must allocate the buffer itself
-    if (OrthancPluginCreateMemoryBuffer64(OrthancPlugins::GetGlobalContext(), target, fileSize) != OrthancPluginErrorCode_Success)
-    {
-      LOG(ERROR) << "Unable to allocate memory to read file: " << path;
-      return OrthancPluginErrorCode_NotEnoughMemory;
-    }
-
-    if (fileSize != 0)
-    {
-      f.read(reinterpret_cast<char*>(target->data), fileSize);
-    }
-
-    f.close();
-  }
-  catch (...)
-  {
-    LOG(ERROR) << "Unexpected error while reading: " << path;
-    return OrthancPluginErrorCode_StorageAreaPlugin;
-  }
-
-  return OrthancPluginErrorCode_Success;
-}
-
-
 OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         const char* uuid,
                                         OrthancPluginContentType type,
@@ -514,7 +458,7 @@ extern "C"
         }
       }
 
-      OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadWhole, StorageReadRange, StorageRemove);
+      OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);
 
       OrthancPluginRegisterRestCallback(context, "/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", GetAttachmentInfo);
       OrthancPluginRegisterRestCallback(context, "/tools/adopt-instance", PostAdoptInstance);

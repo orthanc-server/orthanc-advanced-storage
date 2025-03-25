@@ -12,6 +12,10 @@ import urllib.request
 
 TARGET = os.path.join(os.path.dirname(__file__), 'Orthanc')
 PLUGIN_SDK_VERSION = '1.12.7'
+
+# PLUGIN_SDK_BRANCH = 'Orthanc-%s' % PLUGIN_SDK_VERSION,
+PLUGIN_SDK_BRANCH = 'attach-custom-data'   # TODO - REMOVE
+
 REPOSITORY = 'https://orthanc.uclouvain.be/hg/orthanc/raw-file'
 
 FILES = [
@@ -54,8 +58,8 @@ def Download(x):
     with open(target, 'wb') as f:
         try:
             f.write(urllib.request.urlopen(url).read())
-        except:
-            print('ERROR %s' % url)
+        except Exception as e:
+            print('ERROR %s: %s' % (url, e))
             raise
 
 
@@ -66,12 +70,12 @@ for f in FILES:
                       f[0],
                       os.path.join(f[1], os.path.basename(f[0])) ])
 
-# for f in SDK:
-#     commands.append([
-#         'Orthanc-%s' % PLUGIN_SDK_VERSION, 
-#         'OrthancServer/Plugins/Include/%s' % f,
-#         'Sdk-%s/%s' % (PLUGIN_SDK_VERSION, f) 
-#     ])
+for f in SDK:
+    commands.append([
+        PLUGIN_SDK_BRANCH,
+        'OrthancServer/Plugins/Include/%s' % f,
+        'Sdk-%s/%s' % (PLUGIN_SDK_VERSION, f)
+    ])
 
 
 pool = multiprocessing.Pool(10)  # simultaneous downloads

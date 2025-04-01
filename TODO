@@ -2,6 +2,9 @@
 
 TODO_CUSTOM_DATA branch
 - add revisions and customData in all Database plugins
+- add index on customData in PG + MySQL + ...  ?
+- add a "Own" option to the adopt-instance route ?
+- add /abandon-instance route
 - refuse to instantiate a PluginStorage3 if a DBv4 is not instantiated !
 - handle all TODO_CUSTOM_DATA
 - check /attachments/...  routes for path returned
@@ -13,7 +16,7 @@ TODO_CUSTOM_DATA branch
   - write integration test for advanced-storage: 
     - launch 1.12.6
     - upload 1 file
-    - launch 1.12.7 with advanced-storage plugin with a non default namingScheme
+    - launch 1.12.99 with advanced-storage plugin with a non default namingScheme
     - upload 1 file
     - access + delete initial file
 - share code to compute path from tags between S3 & AdvancedStoragePlugin 
@@ -58,7 +61,8 @@ If we want the plugin to be able to move files around, it needs to be able to up
 
 
 Test commands:
-curl http://localhost:8044/tools/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm", "PixelDataOffset": 2152}'
+curl http://localhost:8044/advanced-storage/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm", "PixelDataOffset": 2152}'
+curl http://localhost:8044/advanced-storage/abandon-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm"}'
 
 
 - write integration test for transitions from one DB to the other (for each DB plugin):

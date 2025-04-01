@@ -11,7 +11,7 @@ import stat
 import urllib.request
 
 TARGET = os.path.join(os.path.dirname(__file__), 'Orthanc')
-PLUGIN_SDK_VERSION = '1.12.7'
+PLUGIN_SDK_VERSION = '1.12.99'
 
 # PLUGIN_SDK_BRANCH = 'Orthanc-%s' % PLUGIN_SDK_VERSION,
 PLUGIN_SDK_BRANCH = 'attach-custom-data'   # TODO - REMOVE

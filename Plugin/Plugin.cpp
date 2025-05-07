@@ -46,6 +46,7 @@
 
 #include "CustomData.h"
 #include "PathGenerator.h"
+#include "PathOwner.h"
 
 namespace fs = boost::filesystem;
 
@@ -53,6 +54,13 @@ bool fsyncOnWrite_ = true;
 size_t legacyPathLength = 39; // ex "/00/f7/00f7fd8b-47bd8c3a-ff917804-d180cdbc-40cf9527"
 
 using namespace OrthancPlugins;
+static const char* PLUGIN_ID_ADOPTED_PATH = "advst-adopted-path";
+
+static const char* const SYSTEM_CAPABILITIES = "Capabilities";
+static const char* const SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE = "HasKeyValueStore";
+static const char* const READ_ONLY = "ReadOnly";
+bool isReadOnly_ = false;
+bool hasKeyValueStore_ = false;
 
 
 OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
@@ -218,6 +226,55 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
     }
   }
 
+  return OrthancPluginErrorCode_Success;
+}
+
+static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType, 
+                                              OrthancPluginResourceType resourceType, 
+                                              const char *resourceId)
+{
+  try
+  {
+    switch (changeType)
+    {
+      case OrthancPluginChangeType_OrthancStarted:
+      {
+        Json::Value system;
+        if (OrthancPlugins::RestApiGet(system, "/system", false))
+        {
+          hasKeyValueStore_ = system.isMember(SYSTEM_CAPABILITIES) 
+                              && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE)
+                              && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE].asBool();
+          if (hasKeyValueStore_)
+          {
+            LOG(INFO) << "Orthanc supports KeyValueStore.";
+          }
+          else
+          {
+            LOG(WARNING) << "Orthanc does not support KeyValueStore.  The plugin will not be able to adopt files and the indexer mode will not be available";
+          }
+
+          isReadOnly_ = system.isMember(READ_ONLY) && system[READ_ONLY].asBool();
+
+          if (isReadOnly_)
+          {
+            LOG(WARNING) << "Orthanc is ReadOnly.  The plugin will not be able to adopt files and the indexer mode will not be available";
+          }
+        }
+
+      }; break;
+      default:
+        break;
+    }
+  }
+  catch (Orthanc::OrthancException& e)
+  {
+    LOG(ERROR) << "Exception: " << e.What();
+  }
+  catch (...)
+  {
+    LOG(ERROR) << "Uncatched native exception";
+  }  
 
   return OrthancPluginErrorCode_Success;
 }
@@ -278,7 +335,7 @@ extern "C"
 
       OrthancPlugins::MemoryBuffer createdResourceIdBuffer;
       OrthancPlugins::MemoryBuffer attachmentUuidBuffer;
-
+      OrthancPluginStoreStatus storeStatus;
 
       OrthancPluginErrorCode res = OrthancPluginAdoptAttachment(OrthancPlugins::GetGlobalContext(),
                                                                 fileContent.data(),
@@ -288,7 +345,8 @@ extern "C"
                                                                 OrthancPluginResourceType_None,
                                                                 NULL,
                                                                 *createdResourceIdBuffer,
-                                                                *attachmentUuidBuffer
+                                                                *attachmentUuidBuffer,
+                                                                &storeStatus
                                                                 );
 
       if (res == OrthancPluginErrorCode_Success)
@@ -296,11 +354,47 @@ extern "C"
         std::string createdResourceId, attachmentUuid;
 
         createdResourceIdBuffer.ToString(createdResourceId);
-        attachmentUuidBuffer.ToString(attachmentUuid);
 
         Json::Value response;
         response["InstanceId"] = createdResourceId;
-        response["AttachmentUuid"] = attachmentUuid;
+
+        if (storeStatus == OrthancPluginStoreStatus_Success)
+        {
+          PathOwner owner = PathOwner::Create(createdResourceId, OrthancPluginResourceType_Instance, OrthancPluginContentType_Dicom);
+          std::string serializedOwner;
+          owner.ToString(serializedOwner);
+
+          // also store the owner info in the key value store in case the file is abandoned later
+          OrthancPluginStoreKeyValue(OrthancPlugins::GetGlobalContext(),
+                                    PLUGIN_ID_ADOPTED_PATH,
+                                    path.string().c_str(),
+                                    serializedOwner.c_str(),
+                                    serializedOwner.size());
+
+          attachmentUuidBuffer.ToString(attachmentUuid);
+          response["AttachmentUuid"] = attachmentUuid;
+          response["Status"] = "Success";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_AlreadyStored)
+        {
+          response["Status"] = "AlreadyStored";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_Failure)
+        {
+          response["Status"] = "Failure";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_FilteredOut)
+        {
+          response["Status"] = "FilteredOut";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_StorageFull)
+        {
+          response["Status"] = "StorageFull";
+        }
+        else
+        {
+          response["Status"] = "Unknown";
+        }
 
         OrthancPlugins::AnswerJson(response, output);
       }
@@ -308,6 +402,67 @@ extern "C"
       {
         // TODO
       }
+    }
+
+    return OrthancPluginErrorCode_Success;
+  }
+
+  OrthancPluginErrorCode PostAbandonInstance(OrthancPluginRestOutput* output,
+                                             const char* url,
+                                             const OrthancPluginHttpRequest* request)
+  {
+    if (request->method != OrthancPluginHttpMethod_Post)
+    {
+      OrthancPlugins::AnswerMethodNotAllowed(output, "POST");
+    }
+    else
+    {
+      Json::Value body;
+
+      if (!OrthancPlugins::ReadJson(body, request->body, request->bodySize))
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
+      }
+
+      fs::path path;
+      if (!body.isMember("Path") || !body["Path"].isString())
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
+      }
+      
+      path = body["Path"].asString();
+
+      // find attachment uuid from path -> lookup in DB the Key-Value Store provided by Orthanc
+      OrthancPlugins::MemoryBuffer attachmentOwnerBuffer;
+
+      OrthancPluginErrorCode ret = OrthancPluginGetKeyValue(OrthancPlugins::GetGlobalContext(),
+                                                            PLUGIN_ID_ADOPTED_PATH,
+                                                            path.string().c_str(),
+                                                            *attachmentOwnerBuffer);
+
+      if (ret == OrthancPluginErrorCode_Success)
+      {
+        PathOwner owner = PathOwner::FromString(attachmentOwnerBuffer.GetData(), attachmentOwnerBuffer.GetSize());
+        std::string urlToDelete;
+        owner.GetUrlForDeletion(urlToDelete);
+
+        OrthancPluginDeleteKeyValue(OrthancPlugins::GetGlobalContext(),
+                                    PLUGIN_ID_ADOPTED_PATH,
+                                    path.string().c_str());
+
+        // trigger the deletion of this attachment
+        LOG(INFO) << "Deleting attachment " << urlToDelete << " for path " << path.string();
+        OrthancPlugins::RestApiDelete(urlToDelete, true);
+
+        // The StorageRemove will know if it needs to delete the file or not (depending on the ownership)
+        OrthancPlugins::AnswerHttpError(200, output);
+      }
+      else if (ret == OrthancPluginErrorCode_UnknownResource)
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, "The path could not be found: " + path.string());
+      }
+
+
     }
 
     return OrthancPluginErrorCode_Success;
@@ -342,11 +497,10 @@ extern "C"
     return OrthancPluginErrorCode_Success;
   }
 
-
   ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context)
   {
-    OrthancPlugins::SetGlobalContext(context);
-    Orthanc::Logging::InitializePluginContext(context);
+    OrthancPlugins::SetGlobalContext(context, ORTHANC_PLUGIN_NAME);
+    Orthanc::Logging::InitializePluginContext(context, ORTHANC_PLUGIN_NAME);
 
     /* Check the version of the Orthanc core */
     if (OrthancPluginCheckVersion(context) == 0)
@@ -461,7 +615,12 @@ extern "C"
       OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);
 
       OrthancPluginRegisterRestCallback(context, "/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", GetAttachmentInfo);
-      OrthancPluginRegisterRestCallback(context, "/tools/adopt-instance", PostAdoptInstance);
+
+      {
+        OrthancPluginRegisterRestCallback(context, "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
+        OrthancPluginRegisterRestCallback(context, "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
+        OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
+      }
     }
     else
     {

@@ -1,4 +1,5 @@
 - add unit test project
+- DeIdentifyLogs (since path can contain patient data)
 
 TODO_CUSTOM_DATA branch
 - add revisions and customData in all Database plugins
@@ -59,10 +60,9 @@ If we want the plugin to be able to move files around, it needs to be able to up
   OUT: - new uuid ??? or same uuid ?
 
 
-
 Test commands:
-curl http://localhost:8044/advanced-storage/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm", "PixelDataOffset": 2152}'
-curl http://localhost:8044/advanced-storage/abandon-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm"}'
+curl http://localhost:8044/plugins/advanced-storage/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm", "PixelDataOffset": 2152}'
+curl http://localhost:8044/plugins/advanced-storage/abandon-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm"}'
 
 
 - write integration test for transitions from one DB to the other (for each DB plugin):

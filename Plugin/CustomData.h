@@ -46,7 +46,7 @@ namespace OrthancPlugins
     static CustomData CreateForWriting(const std::string& uuid,
                                        const boost::filesystem::path& relativePath);
 
-    static CustomData CreateForAdoption(const boost::filesystem::path& path);
+    static CustomData CreateForAdoption(const boost::filesystem::path& path, bool takeOwnership);
 
     static void SetMaxPathLength(size_t maxPathLength);
 

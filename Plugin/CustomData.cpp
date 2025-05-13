@@ -190,10 +190,10 @@ namespace OrthancPlugins
     return cd;
   }
 
-  CustomData CustomData::CreateForAdoption(const boost::filesystem::path& path)
+  CustomData CustomData::CreateForAdoption(const boost::filesystem::path& path, bool takeOwnership)
   {
     CustomData cd;
-    cd.isOwner_ = false;
+    cd.isOwner_ = takeOwnership;
     // cd.uuid_  // stays empty in this case
     // cd.storageId_ // stays empty in this case
     cd.path_ = path;

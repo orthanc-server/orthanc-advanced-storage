@@ -229,6 +229,17 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
   return OrthancPluginErrorCode_Success;
 }
 
+extern "C" {
+  OrthancPluginErrorCode PostAbandonInstance(OrthancPluginRestOutput* output,
+                                             const char* url,
+                                             const OrthancPluginHttpRequest* request);
+
+  OrthancPluginErrorCode PostAdoptInstance(OrthancPluginRestOutput* output,
+                                             const char* url,
+                                             const OrthancPluginHttpRequest* request);
+
+}
+
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType, 
                                               OrthancPluginResourceType resourceType, 
                                               const char *resourceId)
@@ -245,6 +256,7 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           hasKeyValueStore_ = system.isMember(SYSTEM_CAPABILITIES) 
                               && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE)
                               && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE].asBool();
+          
           if (hasKeyValueStore_)
           {
             LOG(INFO) << "Orthanc supports KeyValueStore.";
@@ -259,6 +271,11 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           if (isReadOnly_)
           {
             LOG(WARNING) << "Orthanc is ReadOnly.  The plugin will not be able to adopt files and the indexer mode will not be available";
+          }
+
+          {
+            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
+            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
           }
         }
 
@@ -307,13 +324,9 @@ extern "C"
       
       path = body["Path"].asString();
 
-      // uint64_t pixelDataOffset = 0;
-      // if (body.isMember("PixelDataOffset") && body["PixelDataOffset"].isUInt64()) // TODO_ATTACH_CUSTOM_DATA: temporary code for testing: the plugin should read the file to compute it
-      // {
-      //   pixelDataOffset = body["PixelDataOffset"].asUInt64();
-      // }
+      bool takeOwnership = body.isMember("TakeOwnership") && body["TakeOwnership"].asBool();  // false by default 
 
-      CustomData cd = CustomData::CreateForAdoption(path);
+      CustomData cd = CustomData::CreateForAdoption(path, takeOwnership);
       std::string customDataString;
       cd.ToString(customDataString);
 
@@ -616,11 +629,7 @@ extern "C"
 
       OrthancPluginRegisterRestCallback(context, "/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", GetAttachmentInfo);
 
-      {
-        OrthancPluginRegisterRestCallback(context, "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
-        OrthancPluginRegisterRestCallback(context, "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
-        OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
-      }
+      OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
     }
     else
     {

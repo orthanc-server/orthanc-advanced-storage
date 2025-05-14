@@ -132,6 +132,16 @@ namespace OrthancPlugins
   {
   }
 
+  CustomData CustomData::CreateForMoveStorage(const CustomData& currentCustomData, const std::string& targetStorageId)
+  {
+    CustomData cd;
+    cd.uuid_ = currentCustomData.uuid_;
+    cd.path_ = currentCustomData.path_;
+    cd.isOwner_ = currentCustomData.isOwner_;
+    cd.storageId_ = targetStorageId;
+
+    return cd;
+  }
 
   CustomData CustomData::FromString(const std::string& uuid, 
                                     const void* customDataBuffer,
@@ -306,12 +316,17 @@ namespace OrthancPlugins
 
     if (IsMultipleStoragesEnabled() && isOwner_)
     {
-      customDataVariables.push_back(std::string(SERIALIZATION_KEY_STORAGE_ID) + "=" + currentWriteStorageId_);
+      customDataVariables.push_back(std::string(SERIALIZATION_KEY_STORAGE_ID) + "=" + storageId_);
     }
 
     customDataVariables.push_back(std::string(SERIALIZATION_KEY_IS_OWNER) + "=" + (isOwner_ ? "1" : "0"));
 
     Orthanc::Toolbox::JoinStrings(serialized, customDataVariables, ";");
+  }
+
+  bool CustomData::HasStorage(const std::string& storageId)
+  {
+    return storagesRootPaths_.find(storageId) != storagesRootPaths_.end();
   }
 
 }

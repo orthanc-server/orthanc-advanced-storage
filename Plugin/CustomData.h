@@ -48,6 +48,8 @@ namespace OrthancPlugins
 
     static CustomData CreateForAdoption(const boost::filesystem::path& path, bool takeOwnership);
 
+    static CustomData CreateForMoveStorage(const CustomData& currentCustomData, const std::string& targetStorageId);
+
     static void SetMaxPathLength(size_t maxPathLength);
 
     static void SetCurrentWriteStorageId(const std::string& storageId);
@@ -57,6 +59,8 @@ namespace OrthancPlugins
     static void SetStorageRootPath(const std::string& storageId, const std::string& rootPath);
 
     static boost::filesystem::path GetStorageRootPath(const std::string& storageId);
+
+    static bool HasStorage(const std::string& storageId);
 
     static void SetOrthancCoreRootPath(const std::string& rootPath);
 
@@ -73,6 +77,11 @@ namespace OrthancPlugins
     bool IsOwner() const
     {
       return isOwner_;
+    }
+
+    const std::string& GetUuid() const
+    {
+      return uuid_;
     }
 
   protected:

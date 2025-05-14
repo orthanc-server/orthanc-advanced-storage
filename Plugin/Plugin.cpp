@@ -47,6 +47,9 @@
 #include "CustomData.h"
 #include "PathGenerator.h"
 #include "PathOwner.h"
+#include "MoveStorageJob.h"
+#include "Constants.h"
+#include "Helpers.h"
 
 namespace fs = boost::filesystem;
 
@@ -235,9 +238,12 @@ extern "C" {
                                              const OrthancPluginHttpRequest* request);
 
   OrthancPluginErrorCode PostAdoptInstance(OrthancPluginRestOutput* output,
-                                             const char* url,
-                                             const OrthancPluginHttpRequest* request);
+                                           const char* url,
+                                           const OrthancPluginHttpRequest* request);
 
+  OrthancPluginErrorCode PostMoveStorage(OrthancPluginRestOutput* output,
+                                         const char* /*url*/,
+                                         const OrthancPluginHttpRequest* request);
 }
 
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType, 
@@ -276,6 +282,7 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           {
             OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
             OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
+            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/move-storage", PostMoveStorage);
           }
         }
 
@@ -294,6 +301,26 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   }  
 
   return OrthancPluginErrorCode_Success;
+}
+
+static MoveStorageJob* CreateMoveStorageJob(const std::string& targetStorage, const std::vector<std::string>& instances, const Json::Value& resourcesForJobContent)
+{
+  std::unique_ptr<MoveStorageJob> job(new MoveStorageJob(targetStorage, instances, resourcesForJobContent));
+
+  return job.release();
+}
+
+
+static void AddResourceForJobContent(Json::Value& resourcesForJobContent /* out */, Orthanc::ResourceType resourceType, const std::string& resourceId)
+{
+  const char* resourceGroup = Orthanc::GetResourceTypeText(resourceType, true, true);
+
+  if (!resourcesForJobContent.isMember(resourceGroup))
+  {
+    resourcesForJobContent[resourceGroup] = Json::arrayValue;
+  }
+  
+  resourcesForJobContent[resourceGroup].append(resourceId);
 }
 
 extern "C"
@@ -481,6 +508,111 @@ extern "C"
     return OrthancPluginErrorCode_Success;
   }
 
+  OrthancPluginErrorCode PostMoveStorage(OrthancPluginRestOutput* output,
+                                         const char* /*url*/,
+                                         const OrthancPluginHttpRequest* request)
+  {
+    OrthancPluginContext* context = OrthancPlugins::GetGlobalContext();
+
+    if (request->method != OrthancPluginHttpMethod_Post)
+    {
+      OrthancPluginSendMethodNotAllowed(context, output, "POST");
+      return OrthancPluginErrorCode_Success;
+    }
+
+    Json::Value requestPayload;
+
+    if (!OrthancPlugins::ReadJson(requestPayload, request->body, request->bodySize))
+    {
+      throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
+    }
+
+    std::vector<std::string> instances;
+    Json::Value resourcesForJobContent;
+
+    if (requestPayload.type() != Json::objectValue ||
+        !requestPayload.isMember(KEY_RESOURCES) ||
+        requestPayload[KEY_RESOURCES].type() != Json::arrayValue)
+    {
+      throw Orthanc::OrthancException(
+        Orthanc::ErrorCode_BadFileFormat,
+        "A request to the move-storage endpoint must provide a JSON object "
+        "with the field \"" + std::string(KEY_RESOURCES) + 
+        "\" containing an array of resources to be sent");
+    }
+
+    if (!requestPayload.isMember(KEY_TARGET_STORAGE_ID)
+        || requestPayload[KEY_TARGET_STORAGE_ID].type() != Json::stringValue
+        || !CustomData::HasStorage(requestPayload[KEY_TARGET_STORAGE_ID].asString()))
+    {
+      throw Orthanc::OrthancException(
+        Orthanc::ErrorCode_BadFileFormat,
+        "A request to the move-storage endpoint must provide a JSON object "
+        "with the field \"" + std::string(KEY_TARGET_STORAGE_ID) + 
+        "\" set to one of the storage ids");
+    }
+
+    const std::string& targetStorage = requestPayload[KEY_TARGET_STORAGE_ID].asString();
+    const Json::Value& resources = requestPayload[KEY_RESOURCES];
+
+    // Extract information about all the child instances
+    for (Json::Value::ArrayIndex i = 0; i < resources.size(); i++)
+    {
+      if (resources[i].type() != Json::stringValue)
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat);
+      }
+
+      std::string resource = resources[i].asString();
+      if (resource.empty())
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource);
+      }
+
+      // Test whether this resource is an instance
+      Json::Value tmpResource;
+      Json::Value tmpInstances;
+      if (OrthancPlugins::RestApiGet(tmpResource, "/instances/" + resource, false))
+      {
+        instances.push_back(resource);
+        AddResourceForJobContent(resourcesForJobContent, Orthanc::ResourceType_Instance, resource);
+      }
+      // This was not an instance, successively try with series/studies/patients
+      else if ((OrthancPlugins::RestApiGet(tmpResource, "/series/" + resource, false) &&
+                OrthancPlugins::RestApiGet(tmpInstances, "/series/" + resource + "/instances?expand=false", false)) ||
+              (OrthancPlugins::RestApiGet(tmpResource, "/studies/" + resource, false) &&
+                OrthancPlugins::RestApiGet(tmpInstances, "/studies/" + resource + "/instances?expand=false", false)) ||
+              (OrthancPlugins::RestApiGet(tmpResource, "/patients/" + resource, false) &&
+                OrthancPlugins::RestApiGet(tmpInstances, "/patients/" + resource + "/instances?expand=false", false)))
+      {
+        if (tmpInstances.type() != Json::arrayValue)
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError);
+        }
+
+        AddResourceForJobContent(resourcesForJobContent, Orthanc::StringToResourceType(tmpResource["Type"].asString().c_str()), resource);
+
+        for (Json::Value::ArrayIndex j = 0; j < tmpInstances.size(); j++)
+        {
+          instances.push_back(tmpInstances[j].asString());
+        }
+      }
+      else
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource);
+      }   
+    }
+
+    LOG(INFO) << "Moving " << instances.size() << " instances to storageId " << targetStorage;
+
+    std::unique_ptr<MoveStorageJob> job(CreateMoveStorageJob(targetStorage, instances, resourcesForJobContent));
+
+    OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestPayload, job.release());
+    return OrthancPluginErrorCode_Success;
+  }
+
+
+
   OrthancPluginErrorCode GetAttachmentInfo(OrthancPluginRestOutput* output,
                                            const char* url,
                                            const OrthancPluginHttpRequest* request)
@@ -494,17 +626,15 @@ extern "C"
       Json::Value response;
 
       OrthancPlugins::RestApiClient coreApi(url, request);
-      // TODO: we need to be able to retrieve the Attachment info from DB including CustomData in order to show the path
 
-      if (coreApi.Execute() && coreApi.GetAnswerJson(response) && response.isArray())
+      if (coreApi.Execute() && coreApi.GetAnswerJson(response) && response.isObject())
       {
-        response.append("path");
+        CustomData customData = OrthancPlugins::GetAttachmentCustomData(response["Uuid"].asString());
+
+        response["Path"] = customData.GetAbsolutePath().string();
       }
 
       OrthancPlugins::AnswerJson(response, output);
-      LOG(INFO) << request->groups[0];
-      LOG(INFO) << request->groups[1];
-      LOG(INFO) << request->groups[2];
     }
 
     return OrthancPluginErrorCode_Success;

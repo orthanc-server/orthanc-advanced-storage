@@ -61,9 +61,11 @@ If we want the plugin to be able to move files around, it needs to be able to up
 
 
 Test commands:
-curl http://localhost:8044/plugins/advanced-storage/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm", "PixelDataOffset": 2152}'
-curl http://localhost:8044/plugins/advanced-storage/abandon-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm"}'
 
+curl http://localhost:8044/plugins/advanced-storage/adopt-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm"}'
+curl http://localhost:8044/plugins/advanced-storage/abandon-instance -d '{"Path": "/mnt/c/Users/Alain/o/dicom-files/CARDIO/XA000001.dcm"}'
+curl http://localhost:8044/instances/ca58b590-8a115ed5-906f7f21-c7af8058-2637f722/attachments/dicom/info
+curl http://localhost:8044/plugins/advanced-storage/move-storage -d '{"Resources": ["ca58b590-8a115ed5-906f7f21-c7af8058-2637f722"], "TargetStorageId": "2"}'
 
 - write integration test for transitions from one DB to the other (for each DB plugin):
   - launch 1.11.2, 

@@ -208,6 +208,7 @@ add_library(AdvancedStorage SHARED ${CORE_SOURCES}
   ${CMAKE_SOURCE_DIR}/Plugin/Plugin.cpp
   ${CMAKE_SOURCE_DIR}/Plugin/PathGenerator.cpp
   ${CMAKE_SOURCE_DIR}/Plugin/CustomData.cpp
+  ${CMAKE_SOURCE_DIR}/Plugin/FoldersIndexer.cpp
   ${CMAKE_SOURCE_DIR}/Plugin/Helpers.cpp
   ${CMAKE_SOURCE_DIR}/Plugin/MoveStorageJob.cpp
   ${CMAKE_SOURCE_DIR}/Plugin/PathOwner.cpp

@@ -48,25 +48,25 @@ namespace OrthancPlugins
 				// TODO: reactivate later ??
 				// if (namingScheme_.find("PatientID") == std::string::npos && namingScheme_.find("OrthancPatientID") == std::string::npos)
 				// {
-				// 	LOG(ERROR) << "AdvancedStorage - To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
+				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
 				// 	return -1;
 				// }
 
 				// if (namingScheme_.find("StudyInstanceUID") == std::string::npos && namingScheme_.find("OrthancStudyID") == std::string::npos)
 				// {
-				// 	LOG(ERROR) << "AdvancedStorage - To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
+				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
 				// 	return -1;
 				// }
 
 				// if (namingScheme_.find("SeriesInstanceUID") == std::string::npos && namingScheme_.find("OrthancSeriesID") == std::string::npos)
 				// {
-				// 	LOG(ERROR) << "AdvancedStorage - To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
+				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
 				// 	return -1;
 				// }
 
 				// if (namingScheme_.find("SOPInstanceUID") == std::string::npos && namingScheme_.find("OrthancInstanceID") == std::string::npos)
 				// {
-				// 	LOG(ERROR) << "AdvancedStorage - To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
+				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
 				// 	return -1;
 				// }
 			}

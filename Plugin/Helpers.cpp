@@ -20,11 +20,20 @@
  **/
 
 #include "Helpers.h"
+#include "PathOwner.h"
+
+#include <SystemToolbox.h>
+#include <Toolbox.h>
+#include <Logging.h>
+
 
 namespace fs = boost::filesystem;
 
 namespace OrthancPlugins
 {
+  static OrthancPlugins::KeyValueStore kvsAdoptedPath_("advst-adopted-path");
+
+
 	CustomData GetAttachmentCustomData(const std::string& attachmentUuid)
 	{
 		OrthancPlugins::MemoryBuffer customDataBuffer;
@@ -67,4 +76,90 @@ namespace OrthancPlugins
       // Ignore the error
     }
   }
+
+  void AdoptFile(std::string& instanceId,
+                 std::string& attachmentUuid,
+                 OrthancPluginStoreStatus& storeStatus,
+                 const std::string& path, 
+                 bool takeOwnership)
+  {
+    CustomData cd = CustomData::CreateForAdoption(path, takeOwnership);
+    std::string customDataString;
+    cd.ToString(customDataString);
+
+    std::string fileContent;
+    Orthanc::SystemToolbox::ReadFile(fileContent, path, true);
+    std::string fileContentMD5;
+    Orthanc::Toolbox::ComputeMD5(fileContentMD5, fileContent);
+
+    OrthancPluginAttachment2 fileInfo;
+    fileInfo.compressedHash = fileContentMD5.c_str();
+    fileInfo.uncompressedHash = fileContentMD5.c_str();
+    fileInfo.uncompressedSize = fileContent.size();
+    fileInfo.compressedSize = fileContent.size();
+    fileInfo.contentType = OrthancPluginContentType_Dicom;
+    fileInfo.uuid = NULL;
+    fileInfo.compressionType = OrthancPluginCompressionType_None;
+    fileInfo.customData = customDataString.c_str();
+    fileInfo.customDataSize = customDataString.size();
+
+    OrthancPlugins::MemoryBuffer createdResourceIdBuffer;
+    OrthancPlugins::MemoryBuffer attachmentUuidBuffer;
+
+    OrthancPluginErrorCode res = OrthancPluginAdoptAttachment(OrthancPlugins::GetGlobalContext(),
+                                                              fileContent.data(),
+                                                              fileContent.size(),
+                                                              &fileInfo,
+                                                              OrthancPluginResourceType_None,
+                                                              NULL,
+                                                              *createdResourceIdBuffer,
+                                                              *attachmentUuidBuffer,
+                                                              &storeStatus
+                                                              );
+
+    if (res == OrthancPluginErrorCode_Success)
+    {
+      createdResourceIdBuffer.ToString(instanceId);
+
+      if (storeStatus == OrthancPluginStoreStatus_Success)
+      {
+        PathOwner owner = PathOwner::Create(instanceId, OrthancPluginResourceType_Instance, OrthancPluginContentType_Dicom);
+        std::string serializedOwner;
+        owner.ToString(serializedOwner);
+
+        // also store the owner info in the key value store in case the file is abandoned later
+        kvsAdoptedPath_.Store(path, serializedOwner);
+        
+        attachmentUuidBuffer.ToString(attachmentUuid);
+      }
+    }
+    else
+    {
+      storeStatus = OrthancPluginStoreStatus_Failure;
+    }
+  }
+
+  void AbandonFile(const std::string& path)
+  {
+    // find attachment uuid from path -> lookup in DB the Key-Value Store provided by Orthanc
+    std::string serializedPathOwner;
+
+    if (kvsAdoptedPath_.Get(serializedPathOwner, path))
+    {
+      PathOwner owner = PathOwner::FromString(serializedPathOwner);
+      std::string urlToDelete;
+      owner.GetUrlForDeletion(urlToDelete);
+
+      kvsAdoptedPath_.Delete(path);
+
+      // trigger the deletion of this attachment
+      LOG(INFO) << "Deleting attachment " << urlToDelete << " for path " << path;
+      OrthancPlugins::RestApiDelete(urlToDelete, true);
+    }
+    else
+    {
+      throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, "The path could not be found: " + path);
+    }
+  }
+
 }

@@ -32,4 +32,12 @@ namespace OrthancPlugins
   bool UpdateAttachmentCustomData(const std::string& attachmentUuid, const CustomData& customData);
 
   void RemoveEmptyParentDirectories(const boost::filesystem::path& path);
+
+  void AdoptFile(std::string& instanceId,
+                 std::string& attachmentUuid,
+                 OrthancPluginStoreStatus& storeStatus,
+                 const std::string& path, 
+                 bool takeOwnership);
+
+  void AbandonFile(const std::string& path); 
 }

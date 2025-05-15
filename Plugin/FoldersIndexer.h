@@ -21,35 +21,45 @@
 
 #pragma once
 
-#include <boost/filesystem.hpp>
-#include <string.h>
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include <boost/filesystem.hpp>
+#include <boost/thread.hpp>
 
+#include <list>
+#include <string.h>
+
+namespace fs = boost::filesystem;
 
 namespace OrthancPlugins
 {
 
-  class PathOwner
+  class FoldersIndexer
   {
-    std::string                 attachmeUuid_;
-    std::string                 resourceId_;
-    OrthancPluginResourceType   resourceType_;
-    OrthancPluginContentType    contentType_;
+    std::list<fs::path>       folders_;
+    unsigned int              intervalInSeconds_;
+    unsigned int              throttleDelayMs_;
+    
+    bool                      isRunning_;
+    boost::thread             thread_;
+    OrthancPlugins::KeyValueStore kvsIndexedPaths_;
 
-  protected:
-    PathOwner();
+    void ProcessFile(const fs::path& path);
+
+    void ProcessDeletedFiles();
+
+    void LookupDeletedFiles();
 
   public:
+    FoldersIndexer(const std::list<std::string>& folders, unsigned int intervalInSeconds, unsigned int throttleDelayMs);
+    ~FoldersIndexer();
 
-    static PathOwner FromString(const std::string& serialized);
+    void Start();
 
-    static PathOwner Create(//const std::string& attachmentUuid,
-                            const std::string& resourceId,
-                            OrthancPluginResourceType resourceType,
-                            OrthancPluginContentType contentType);
+    void Stop();
 
-    void ToString(std::string& serialized) const;
-
-    void GetUrlForDeletion(std::string& url) const;
+    void WorkerThread();
+  
+    bool IsFileIndexed(const std::string& path);
   };
+
 }

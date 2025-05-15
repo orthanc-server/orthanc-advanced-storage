@@ -50,6 +50,7 @@
 #include "MoveStorageJob.h"
 #include "Constants.h"
 #include "Helpers.h"
+#include "FoldersIndexer.h"
 
 namespace fs = boost::filesystem;
 
@@ -57,14 +58,29 @@ bool fsyncOnWrite_ = true;
 size_t legacyPathLength = 39; // ex "/00/f7/00f7fd8b-47bd8c3a-ff917804-d180cdbc-40cf9527"
 
 using namespace OrthancPlugins;
-static const char* PLUGIN_ID_ADOPTED_PATH = "advst-adopted-path";
+
 
 static const char* const SYSTEM_CAPABILITIES = "Capabilities";
 static const char* const SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE = "HasKeyValueStore";
 static const char* const READ_ONLY = "ReadOnly";
+
+static const char* const CONFIG_SYNC_STORAGE_AREA = "SyncStorageArea";
+static const char* const CONFIG_STORAGE_DIRECTORY = "StorageDirectory";
+static const char* const CONFIG_ENABLE = "Enable";
+static const char* const CONFIG_NAMING_SCHEME = "NamingScheme";
+static const char* const CONFIG_MAX_PATH_LENGTH = "MaxPathLength";
+static const char* const CONFIG_OTHER_ATTACHMENTS_PREFIX = "OtherAttachmentsPrefix";
+static const char* const CONFIG_MULTIPLE_STORAGES = "MultipleStorages";
+static const char* const CONFIG_MULTIPLE_STORAGES_STORAGES = "Storages";
+static const char* const CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE = "CurrentWriteStorage";
+static const char* const CONFIG_INDEXER = "Indexer";
+static const char* const CONFIG_INDEXER_FOLDERS = "Folders";
+static const char* const CONFIG_INDEXER_INTERVAL = "Interval";
+static const char* const CONFIG_INDEXER_THROTTLE_DELAY_MS = "ThrottleDelayMs";
+
 bool isReadOnly_ = false;
 bool hasKeyValueStore_ = false;
-
+std::unique_ptr<FoldersIndexer> folderIndexer_;
 
 OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      const char* uuid,
@@ -266,6 +282,14 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           if (hasKeyValueStore_)
           {
             LOG(INFO) << "Orthanc supports KeyValueStore.";
+
+            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
+            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
+
+            if (folderIndexer_.get() != NULL)
+            {
+              folderIndexer_->Start();
+            }
           }
           else
           {
@@ -278,14 +302,15 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           {
             LOG(WARNING) << "Orthanc is ReadOnly.  The plugin will not be able to adopt files and the indexer mode will not be available";
           }
-
-          {
-            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
-            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
-            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/move-storage", PostMoveStorage);
-          }
         }
 
+      }; break;
+      case OrthancPluginChangeType_OrthancStopped:
+      {
+        if (folderIndexer_.get() != NULL)
+        {
+          folderIndexer_->Stop();
+        }
       }; break;
       default:
         break;
@@ -343,105 +368,48 @@ extern "C"
         throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
       }
 
-      fs::path path;
       if (!body.isMember("Path") || !body["Path"].isString())
       {
         throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
       }
       
-      path = body["Path"].asString();
-
       bool takeOwnership = body.isMember("TakeOwnership") && body["TakeOwnership"].asBool();  // false by default 
 
-      CustomData cd = CustomData::CreateForAdoption(path, takeOwnership);
-      std::string customDataString;
-      cd.ToString(customDataString);
-
-      std::string fileContent;
-      Orthanc::SystemToolbox::ReadFile(fileContent, path.string(), true);
-      std::string fileContentMD5;
-      Orthanc::Toolbox::ComputeMD5(fileContentMD5, fileContent);
-
-      OrthancPluginAttachment2 fileInfo;
-      fileInfo.compressedHash = fileContentMD5.c_str();
-      fileInfo.uncompressedHash = fileContentMD5.c_str();
-      fileInfo.uncompressedSize = fileContent.size();
-      fileInfo.compressedSize = fileContent.size();
-      fileInfo.contentType = OrthancPluginContentType_Dicom;
-      fileInfo.uuid = NULL;
-      fileInfo.compressionType = OrthancPluginCompressionType_None;
-      fileInfo.customData = customDataString.c_str();
-      fileInfo.customDataSize = customDataString.size();
-
-      OrthancPlugins::MemoryBuffer createdResourceIdBuffer;
-      OrthancPlugins::MemoryBuffer attachmentUuidBuffer;
+      std::string instanceId, attachmentUuid;
       OrthancPluginStoreStatus storeStatus;
 
-      OrthancPluginErrorCode res = OrthancPluginAdoptAttachment(OrthancPlugins::GetGlobalContext(),
-                                                                fileContent.data(),
-                                                                fileContent.size(), // TODO_ATTACH_CUSTOM_DATA ?pixelDataOffset or fileContent.size(),
-                                                                // TODO_ATTACH_CUSTOM_DATA pixelDataOffset,
-                                                                &fileInfo,
-                                                                OrthancPluginResourceType_None,
-                                                                NULL,
-                                                                *createdResourceIdBuffer,
-                                                                *attachmentUuidBuffer,
-                                                                &storeStatus
-                                                                );
+      AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), takeOwnership);
 
-      if (res == OrthancPluginErrorCode_Success)
+      Json::Value response;
+
+      if (storeStatus == OrthancPluginStoreStatus_Success)
       {
-        std::string createdResourceId, attachmentUuid;
-
-        createdResourceIdBuffer.ToString(createdResourceId);
-
-        Json::Value response;
-        response["InstanceId"] = createdResourceId;
-
-        if (storeStatus == OrthancPluginStoreStatus_Success)
-        {
-          PathOwner owner = PathOwner::Create(createdResourceId, OrthancPluginResourceType_Instance, OrthancPluginContentType_Dicom);
-          std::string serializedOwner;
-          owner.ToString(serializedOwner);
-
-          // also store the owner info in the key value store in case the file is abandoned later
-          OrthancPluginStoreKeyValue(OrthancPlugins::GetGlobalContext(),
-                                    PLUGIN_ID_ADOPTED_PATH,
-                                    path.string().c_str(),
-                                    serializedOwner.c_str(),
-                                    serializedOwner.size());
-
-          attachmentUuidBuffer.ToString(attachmentUuid);
-          response["AttachmentUuid"] = attachmentUuid;
-          response["Status"] = "Success";
-        }
-        else if (storeStatus == OrthancPluginStoreStatus_AlreadyStored)
-        {
-          response["Status"] = "AlreadyStored";
-        }
-        else if (storeStatus == OrthancPluginStoreStatus_Failure)
-        {
-          response["Status"] = "Failure";
-        }
-        else if (storeStatus == OrthancPluginStoreStatus_FilteredOut)
-        {
-          response["Status"] = "FilteredOut";
-        }
-        else if (storeStatus == OrthancPluginStoreStatus_StorageFull)
-        {
-          response["Status"] = "StorageFull";
-        }
-        else
-        {
-          response["Status"] = "Unknown";
-        }
-
-        OrthancPlugins::AnswerJson(response, output);
+        response["InstanceId"] = instanceId;
+        response["AttachmentUuid"] = attachmentUuid;
+        response["Status"] = "Success";
+      }
+      else if (storeStatus == OrthancPluginStoreStatus_AlreadyStored)
+      {
+        response["Status"] = "AlreadyStored";
+      }
+      else if (storeStatus == OrthancPluginStoreStatus_Failure)
+      {
+        response["Status"] = "Failure";
+      }
+      else if (storeStatus == OrthancPluginStoreStatus_FilteredOut)
+      {
+        response["Status"] = "FilteredOut";
+      }
+      else if (storeStatus == OrthancPluginStoreStatus_StorageFull)
+      {
+        response["Status"] = "StorageFull";
       }
       else
       {
-        // TODO
+        response["Status"] = "Unknown";
       }
+
+      OrthancPlugins::AnswerJson(response, output);
     }
 
     return OrthancPluginErrorCode_Success;
@@ -464,45 +432,14 @@ extern "C"
         throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
       }
 
-      fs::path path;
       if (!body.isMember("Path") || !body["Path"].isString())
       {
         throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
       }
       
-      path = body["Path"].asString();
+      AbandonFile(body["Path"].asString());
 
-      // find attachment uuid from path -> lookup in DB the Key-Value Store provided by Orthanc
-      OrthancPlugins::MemoryBuffer attachmentOwnerBuffer;
-
-      OrthancPluginErrorCode ret = OrthancPluginGetKeyValue(OrthancPlugins::GetGlobalContext(),
-                                                            PLUGIN_ID_ADOPTED_PATH,
-                                                            path.string().c_str(),
-                                                            *attachmentOwnerBuffer);
-
-      if (ret == OrthancPluginErrorCode_Success)
-      {
-        PathOwner owner = PathOwner::FromString(attachmentOwnerBuffer.GetData(), attachmentOwnerBuffer.GetSize());
-        std::string urlToDelete;
-        owner.GetUrlForDeletion(urlToDelete);
-
-        OrthancPluginDeleteKeyValue(OrthancPlugins::GetGlobalContext(),
-                                    PLUGIN_ID_ADOPTED_PATH,
-                                    path.string().c_str());
-
-        // trigger the deletion of this attachment
-        LOG(INFO) << "Deleting attachment " << urlToDelete << " for path " << path.string();
-        OrthancPlugins::RestApiDelete(urlToDelete, true);
-
-        // The StorageRemove will know if it needs to delete the file or not (depending on the ownership)
-        OrthancPlugins::AnswerHttpError(200, output);
-      }
-      else if (ret == OrthancPluginErrorCode_UnknownResource)
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, "The path could not be found: " + path.string());
-      }
-
-
+      OrthancPlugins::AnswerHttpError(200, output);
     }
 
     return OrthancPluginErrorCode_Success;
@@ -632,6 +569,12 @@ extern "C"
         CustomData customData = OrthancPlugins::GetAttachmentCustomData(response["Uuid"].asString());
 
         response["Path"] = customData.GetAbsolutePath().string();
+        response["IsAdopted"] = !customData.IsOwner();
+        
+        if (folderIndexer_.get() != NULL)
+        {
+          response["IsIndexed"] = folderIndexer_->IsFileIndexed(customData.GetAbsolutePath().string());
+        }
       }
 
       OrthancPlugins::AnswerJson(response, output);
@@ -659,91 +602,64 @@ extern "C"
 
     OrthancPlugins::OrthancConfiguration orthancConfiguration;
 
-    OrthancPlugins::OrthancConfiguration advancedStorage;
-    orthancConfiguration.GetSection(advancedStorage, "AdvancedStorage");
+    OrthancPlugins::OrthancConfiguration advancedStorageConfiguration;
+    orthancConfiguration.GetSection(advancedStorageConfiguration, "AdvancedStorage");
 
-    bool enabled = advancedStorage.GetBooleanValue("Enable", false);
+    bool enabled = advancedStorageConfiguration.GetBooleanValue(CONFIG_ENABLE, false);
     if (enabled)
     {
-      fsyncOnWrite_ = orthancConfiguration.GetBooleanValue("SyncStorageArea", true);
+      fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
 
-      const Json::Value& pluginJson = advancedStorage.GetJson();
+      const Json::Value& pluginJson = advancedStorageConfiguration.GetJson();
 
       try
       {
-        PathGenerator::SetNamingScheme(advancedStorage.GetStringValue("NamingScheme", "OrthancDefault"));
+        PathGenerator::SetNamingScheme(advancedStorageConfiguration.GetStringValue(CONFIG_NAMING_SCHEME, "OrthancDefault"));
       }
       catch (Orthanc::OrthancException& ex)
       {
         return -1;
       }
 
-      std::string otherAttachmentsPrefix = advancedStorage.GetStringValue("OtherAttachmentsPrefix", "");
-      LOG(WARNING) << "AdvancedStorage - Prefix path to the other attachments root: " << otherAttachmentsPrefix;
+      std::string otherAttachmentsPrefix = advancedStorageConfiguration.GetStringValue(CONFIG_OTHER_ATTACHMENTS_PREFIX, "");
+      LOG(WARNING) << "Prefix path to the other attachments root: " << otherAttachmentsPrefix;
       CustomData::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
       
       // if we have enabled multiple storage after files have been saved without this plugin, we still need the default StorageDirectory
-      CustomData::SetOrthancCoreRootPath(orthancConfiguration.GetStringValue("StorageDirectory", "OrthancStorage"));
-      LOG(WARNING) << "AdvancedStorage - Path to the default storage area: " << CustomData::GetOrthancCoreRootPath();
+      CustomData::SetOrthancCoreRootPath(orthancConfiguration.GetStringValue(CONFIG_STORAGE_DIRECTORY, "OrthancStorage"));
+      LOG(WARNING) << "Path to the default storage area: " << CustomData::GetOrthancCoreRootPath();
 
-      size_t maxPathLength = advancedStorage.GetIntegerValue("MaxPathLength", 256);
-      LOG(WARNING) << "AdvancedStorage - Maximum path length: " << maxPathLength;
+      size_t maxPathLength = advancedStorageConfiguration.GetIntegerValue(CONFIG_MAX_PATH_LENGTH, 256);
+      LOG(WARNING) << "Maximum path length: " << maxPathLength;
       CustomData::SetMaxPathLength(maxPathLength);
 
-      // if (!rootPath_.is_absolute())
-      // {
-      //   LOG(WARNING) << "AdvancedStorage - Path to the default storage is not an absolute path " << rootPath_ << " (\"StorageDirectory\" in main Orthanc configuration), computing absolute path";
-      //   rootPath_ = fs::absolute(rootPath_);
-      //   LOG(WARNING) << "AdvancedStorage - Absolute path to the default storage is now " << rootPath_;
-      // }
-
-      // if (rootPath_.size() > (maxPathLength_ - legacyPathLength))
-      // {
-      //   LOG(ERROR) << "AdvancedStorage - Path to the default storage is too long";
-      //   return -1;
-      // }
-
-      if (pluginJson.isMember("MultipleStorages"))
+      if (pluginJson.isMember(CONFIG_MULTIPLE_STORAGES))
       {
         // multipleStoragesEnabled_ = true;
-        const Json::Value& multipleStoragesJson = pluginJson["MultipleStorages"];
+        const Json::Value& multipleStoragesJson = pluginJson[CONFIG_MULTIPLE_STORAGES];
         
-        if (multipleStoragesJson.isMember("Storages") && multipleStoragesJson.isObject())
+        if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_STORAGES) && multipleStoragesJson.isObject())
         {
-          const Json::Value& storagesJson = multipleStoragesJson["Storages"];
+          const Json::Value& storagesJson = multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_STORAGES];
           Json::Value::Members storageIds = storagesJson.getMemberNames();
     
           for (Json::Value::Members::const_iterator it = storageIds.begin(); it != storageIds.end(); ++it)
           {
             if (!storagesJson[*it].isString())
             {
-              LOG(ERROR) << "AdvancedStorage - Storage path is not a string " << *it;
+              LOG(ERROR) << "Storage path is not a string " << *it;
               return -1;
             }
             fs::path storagePath = storagesJson[*it].asString();
 
-            // if (!storagePath.is_absolute())
-            // {
-            //   LOG(WARNING) << "AdvancedStorage - Storage path is not an absolute path " << storagePath << ", computing absolute path";
-            //   storagePath = fs::absolute(storagePath);
-            //   LOG(WARNING) << "AdvancedStorage - Absolute path to the default storage is now " << storagePath;
-            // }
-
-            // if (storagePath.size() > (maxPathLength_ - legacyPathLength))
-            // {
-            //   LOG(ERROR) << "AdvancedStorage - Storage path is too long '" << storagePath << "'";
-            //   return -1;
-            // }
-
             CustomData::SetStorageRootPath(*it, storagesJson[*it].asString());
-            // rootPaths_[*it] = storagePath;
           }
 
-          if (multipleStoragesJson.isMember("CurrentWriteStorage") && multipleStoragesJson["CurrentWriteStorage"].isString())
+          if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE) && multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].isString())
           {
             try
             {
-              CustomData::SetCurrentWriteStorageId(multipleStoragesJson["CurrentWriteStorage"].asString());
+              CustomData::SetCurrentWriteStorageId(multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString());
             }
             catch (Orthanc::OrthancException& ex)
             {
@@ -751,8 +667,30 @@ extern "C"
             }
           }
 
-          LOG(WARNING) << "AdvancedStorage - multiple storages enabled.  Current Write storage : " << multipleStoragesJson["CurrentWriteStorage"].asString();
+          LOG(WARNING) << "multiple storages enabled.  Current Write storage : " << multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString();
+
+          OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/move-storage", PostMoveStorage);
         }
+      }
+
+      if (advancedStorageConfiguration.IsSection(CONFIG_INDEXER))
+      {
+        OrthancPlugins::OrthancConfiguration indexerConfig;
+        advancedStorageConfiguration.GetSection(indexerConfig, CONFIG_INDEXER);
+
+        std::list<std::string> indexedFolders;
+        unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
+        unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+
+        if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
+            indexedFolders.empty())
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
+                                          "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
+        }
+
+        LOG(WARNING) << "creating FoldersIndexer";
+        folderIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs));
       }
 
       OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);

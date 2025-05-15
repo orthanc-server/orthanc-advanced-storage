@@ -42,23 +42,17 @@ namespace OrthancPlugins
   }
   
   
-    // std::string                 attachmeUuid_;
-    // std::string                 resourceId_;
-    // OrthancPluginResourceType   resourceType_;
-    // OrthancPluginContentType    contentType_;
 
-  PathOwner PathOwner::FromString(const void* pathOwnerDataBuffer,
-                                  uint64_t pathOwnerDataSize)
+  PathOwner PathOwner::FromString(const std::string& serialized)
   {
     PathOwner owner;
 
-    if (pathOwnerDataSize != 0)
+    if (!serialized.empty())
     {
       std::map<std::string, std::string> ownerDico;
-      std::string ownerDataString(reinterpret_cast<const char*>(pathOwnerDataBuffer), pathOwnerDataSize);
 
       std::vector<std::string> ownerDataVariables;
-      Orthanc::Toolbox::SplitString(ownerDataVariables, ownerDataString, ';');
+      Orthanc::Toolbox::SplitString(ownerDataVariables, serialized, ';');
 
       for (std::vector<std::string>::const_iterator it = ownerDataVariables.begin(); it != ownerDataVariables.end(); ++it)
       {

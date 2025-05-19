@@ -51,6 +51,7 @@
 #include "Constants.h"
 #include "Helpers.h"
 #include "FoldersIndexer.h"
+#include "DelayedFilesDeleter.h"
 
 namespace fs = boost::filesystem;
 
@@ -61,7 +62,8 @@ using namespace OrthancPlugins;
 
 
 static const char* const SYSTEM_CAPABILITIES = "Capabilities";
-static const char* const SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE = "HasKeyValueStore";
+static const char* const SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE = "HasKeyValueStores";
+static const char* const SYSTEM_CAPABILITIES_HAS_QUEUES = "HasQueues";
 static const char* const READ_ONLY = "ReadOnly";
 
 static const char* const CONFIG_SYNC_STORAGE_AREA = "SyncStorageArea";
@@ -74,13 +76,26 @@ static const char* const CONFIG_MULTIPLE_STORAGES = "MultipleStorages";
 static const char* const CONFIG_MULTIPLE_STORAGES_STORAGES = "Storages";
 static const char* const CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE = "CurrentWriteStorage";
 static const char* const CONFIG_INDEXER = "Indexer";
+static const char* const CONFIG_INDEXER_ENABLE = "Enable";
 static const char* const CONFIG_INDEXER_FOLDERS = "Folders";
 static const char* const CONFIG_INDEXER_INTERVAL = "Interval";
 static const char* const CONFIG_INDEXER_THROTTLE_DELAY_MS = "ThrottleDelayMs";
+static const char* const CONFIG_DELAYED_DELETION = "DelayedDeletion";
+static const char* const CONFIG_DELAYED_DELETION_ENABLE = "Enable";
+static const char* const CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS = "ThrottleDelayMs";
+
+static const char* const PLUGIN_STATUS_DELAYED_DELETION_ACTIVE = "DelayedDeletionIsActive";
+static const char* const PLUGIN_STATUS_DELAYED_DELETION_PENDING_FILES = "FilesPendingDeletion";
+static const char* const PLUGIN_STATUS_INDEXER_ACTIVE = "IndexerIsActive";
 
 bool isReadOnly_ = false;
-bool hasKeyValueStore_ = false;
-std::unique_ptr<FoldersIndexer> folderIndexer_;
+bool hasKeyValueStoresSupport_ = false;
+bool hasQueuesSupport_ = false;
+
+boost::mutex mutex_;
+std::unique_ptr<FoldersIndexer> foldersIndexer_;
+std::unique_ptr<DelayedFilesDeleter> delayedFilesDeleter_;
+
 
 OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      const char* uuid,
@@ -212,37 +227,35 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
 
   if (!cd.IsOwner())
   {
-    LOG(INFO) << "Advanced Storage - NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ") since the file has been adopted.";
+    LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ") since the file has been adopted.";
   }
   else
   {
-    LOG(INFO) << "Advanced Storage - Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
-
     try
     {
-      fs::remove(path);
-    }
-    catch (...)
-    {
-      // Ignore the error
-    }
-
-    // Remove the empty parent directories, (ignoring the error code if these directories are not empty)
-
-    try
-    {
-      fs::path parent = path.parent_path();
-
-      while (!CustomData::IsARootPath(parent))
       {
-        fs::remove(parent);
-        parent = parent.parent_path();
+        boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and/or delayedDeletion pointer
+
+        if (delayedFilesDeleter_.get() != NULL)
+        {
+          LOG(INFO) << "Scheduling later deletion of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
+          delayedFilesDeleter_->ScheduleFileDeletion(path.string());
+          return OrthancPluginErrorCode_Success;
+        }
       }
+
+      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
+
+      fs::remove(path);
+
+      // Remove the empty parent directories, (ignoring the error code if these directories are not empty)
+      RemoveEmptyParentDirectories(path);
     }
     catch (...)
     {
       // Ignore the error
     }
+
   }
 
   return OrthancPluginErrorCode_Success;
@@ -275,25 +288,47 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
         Json::Value system;
         if (OrthancPlugins::RestApiGet(system, "/system", false))
         {
-          hasKeyValueStore_ = system.isMember(SYSTEM_CAPABILITIES) 
+          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+
+          hasKeyValueStoresSupport_ = system.isMember(SYSTEM_CAPABILITIES) 
                               && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE)
                               && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE].asBool();
           
-          if (hasKeyValueStore_)
+          if (hasKeyValueStoresSupport_)
           {
             LOG(INFO) << "Orthanc supports KeyValueStore.";
 
             OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/adopt-instance", PostAdoptInstance);
             OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/abandon-instance", PostAbandonInstance);
 
-            if (folderIndexer_.get() != NULL)
+            if (foldersIndexer_.get() != NULL)
             {
-              folderIndexer_->Start();
+              LOG(INFO) << "Starting Folders Indexer";
+              foldersIndexer_->Start();
             }
           }
           else
           {
             LOG(WARNING) << "Orthanc does not support KeyValueStore.  The plugin will not be able to adopt files and the indexer mode will not be available";
+            foldersIndexer_.reset(NULL); 
+          }
+
+          hasQueuesSupport_ = system.isMember(SYSTEM_CAPABILITIES) 
+                              && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_QUEUES)
+                              && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_QUEUES].asBool();
+          
+          if (hasQueuesSupport_)
+          {
+            if (delayedFilesDeleter_.get() != NULL)
+            {
+              LOG(INFO) << "Starting Delayed Files Deleter";
+              delayedFilesDeleter_->Start();
+            }
+          }
+          else
+          {
+            LOG(WARNING) << "Orthanc does not support Queues.  The plugin will not be able to implement the delayed deletion mode";
+            delayedFilesDeleter_.reset(NULL); 
           }
 
           isReadOnly_ = system.isMember(READ_ONLY) && system[READ_ONLY].asBool();
@@ -307,9 +342,18 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
       }; break;
       case OrthancPluginChangeType_OrthancStopped:
       {
-        if (folderIndexer_.get() != NULL)
+        boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+
+        if (foldersIndexer_.get() != NULL)
         {
-          folderIndexer_->Stop();
+          foldersIndexer_->Stop();
+          foldersIndexer_.reset(NULL);
+        }
+
+        if (delayedFilesDeleter_.get() != NULL)
+        {
+          delayedFilesDeleter_->Stop();
+          delayedFilesDeleter_.reset(NULL);
         }
       }; break;
       default:
@@ -548,11 +592,31 @@ extern "C"
     return OrthancPluginErrorCode_Success;
   }
 
+  void GetPluginStatus(OrthancPluginRestOutput* output,
+                  const char* url,
+                  const OrthancPluginHttpRequest* request)
+  {
+    Json::Value status;
+    
+    {
+      boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+
+      status[PLUGIN_STATUS_DELAYED_DELETION_ACTIVE] = delayedFilesDeleter_.get() != NULL;
+      status[PLUGIN_STATUS_INDEXER_ACTIVE] = foldersIndexer_.get() != NULL;
+      
+      if (delayedFilesDeleter_.get() != NULL)
+      {
+        status[PLUGIN_STATUS_DELAYED_DELETION_PENDING_FILES] = Json::UInt64(delayedFilesDeleter_->GetPendingDeletionFilesCount());
+      }
+    }
+    
+    OrthancPlugins::AnswerJson(status, output);
+  }
 
 
-  OrthancPluginErrorCode GetAttachmentInfo(OrthancPluginRestOutput* output,
-                                           const char* url,
-                                           const OrthancPluginHttpRequest* request)
+  void GetAttachmentInfo(OrthancPluginRestOutput* output,
+                         const char* url,
+                         const OrthancPluginHttpRequest* request)
   {
     if (request->method != OrthancPluginHttpMethod_Get)
     {
@@ -571,16 +635,14 @@ extern "C"
         response["Path"] = customData.GetAbsolutePath().string();
         response["IsAdopted"] = !customData.IsOwner();
         
-        if (folderIndexer_.get() != NULL)
+        if (foldersIndexer_.get() != NULL)
         {
-          response["IsIndexed"] = folderIndexer_->IsFileIndexed(customData.GetAbsolutePath().string());
+          response["IsIndexed"] = foldersIndexer_->IsFileIndexed(customData.GetAbsolutePath().string());
         }
       }
 
       OrthancPlugins::AnswerJson(response, output);
     }
-
-    return OrthancPluginErrorCode_Success;
   }
 
   ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context)
@@ -678,24 +740,55 @@ extern "C"
         OrthancPlugins::OrthancConfiguration indexerConfig;
         advancedStorageConfiguration.GetSection(indexerConfig, CONFIG_INDEXER);
 
-        std::list<std::string> indexedFolders;
-        unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
-        unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-
-        if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
-            indexedFolders.empty())
+        if (indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE, false))
         {
-          throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
-                                          "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
-        }
 
-        LOG(WARNING) << "creating FoldersIndexer";
-        folderIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs));
+          std::list<std::string> indexedFolders;
+          unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
+          unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+
+          if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
+              indexedFolders.empty())
+          {
+            throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
+                                            "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
+          }
+
+          LOG(WARNING) << "creating FoldersIndexer";
+    
+          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs));
+        }
+        else
+        {
+          LOG(WARNING) << "FoldersIndexer is currently DISABLED";
+        }
+      }
+
+      if (advancedStorageConfiguration.IsSection(CONFIG_DELAYED_DELETION))
+      {
+        OrthancPlugins::OrthancConfiguration delayedDeletionConfig;
+        advancedStorageConfiguration.GetSection(delayedDeletionConfig, CONFIG_DELAYED_DELETION);
+
+        if (delayedDeletionConfig.GetBooleanValue(CONFIG_DELAYED_DELETION_ENABLE, false))
+        {
+          unsigned int throttleDelayMs = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+
+          LOG(WARNING) << "creating DelayedDeleter";
+    
+          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+          delayedFilesDeleter_.reset(new DelayedFilesDeleter(throttleDelayMs));
+        }
+        else
+        {
+          LOG(WARNING) << "DelayedDeletion is currently DISABLED";
+        }
       }
 
       OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);
 
-      OrthancPluginRegisterRestCallback(context, "/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", GetAttachmentInfo);
+      OrthancPlugins::RegisterRestCallback<GetAttachmentInfo>("/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", true);
+      OrthancPlugins::RegisterRestCallback<GetPluginStatus>(std::string("/plugins/") + ORTHANC_PLUGIN_NAME + "/status", true);
 
       OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
     }

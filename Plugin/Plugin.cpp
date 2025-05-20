@@ -56,6 +56,7 @@
 namespace fs = boost::filesystem;
 
 bool fsyncOnWrite_ = true;
+bool overwriteInstances_ = false;
 size_t legacyPathLength = 39; // ex "/00/f7/00f7fd8b-47bd8c3a-ff917804-d180cdbc-40cf9527"
 
 using namespace OrthancPlugins;
@@ -67,6 +68,7 @@ static const char* const SYSTEM_CAPABILITIES_HAS_QUEUES = "HasQueues";
 static const char* const READ_ONLY = "ReadOnly";
 
 static const char* const CONFIG_SYNC_STORAGE_AREA = "SyncStorageArea";
+static const char* const CONFIG_OVERWRITE_INSTANCES = "OverwriteInstances";
 static const char* const CONFIG_STORAGE_DIRECTORY = "StorageDirectory";
 static const char* const CONFIG_ENABLE = "Enable";
 static const char* const CONFIG_NAMING_SCHEME = "NamingScheme";
@@ -671,12 +673,13 @@ extern "C"
     if (enabled)
     {
       fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
+      overwriteInstances_ = orthancConfiguration.GetBooleanValue(CONFIG_OVERWRITE_INSTANCES, false);
 
       const Json::Value& pluginJson = advancedStorageConfiguration.GetJson();
 
       try
       {
-        PathGenerator::SetNamingScheme(advancedStorageConfiguration.GetStringValue(CONFIG_NAMING_SCHEME, "OrthancDefault"));
+        PathGenerator::SetNamingScheme(advancedStorageConfiguration.GetStringValue(CONFIG_NAMING_SCHEME, "OrthancDefault"), overwriteInstances_);
       }
       catch (Orthanc::OrthancException& ex)
       {

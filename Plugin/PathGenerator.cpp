@@ -33,43 +33,36 @@ namespace OrthancPlugins
 {
 	static std::string namingScheme_;
 
-	void PathGenerator::SetNamingScheme(const std::string& namingScheme)
+	void PathGenerator::SetNamingScheme(const std::string& namingScheme, bool isOverwriteInstances)
 	{
 		namingScheme_ = namingScheme;
 
 		if (namingScheme_ != "OrthancDefault")
 		{
 			// when using a custom scheme, to avoid collisions, you must include, at least the attachment UUID
-			// or each of the DICOM IDs or orthanc IDs
-			if (namingScheme_.find("{UUID}") == std::string::npos)
+			// or each of the DICOM IDs or the orthancInstanceID
+			if (!isOverwriteInstances)
 			{
-				throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "To avoid files from being overwritten, your naming scheme shall alway contain the {UUID} (at least in this version of the plugin !!!).");
+        if (namingScheme_.find("{UUID}") == std::string::npos)
+        {
+				  throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "To avoid files from being overwritten, your naming scheme shall alway contain the {UUID} when the OverwriteInstances Orthanc configuration is set to true.");
+        }
+      }
+      else
+      {
+        if (namingScheme_.find("{OrthancInstanceID}") != std::string::npos)
+				{
+          return;
+				}
 
-				// TODO: reactivate later ??
-				// if (namingScheme_.find("PatientID") == std::string::npos && namingScheme_.find("OrthancPatientID") == std::string::npos)
-				// {
-				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
-				// 	return -1;
-				// }
-
-				// if (namingScheme_.find("StudyInstanceUID") == std::string::npos && namingScheme_.find("OrthancStudyID") == std::string::npos)
-				// {
-				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
-				// 	return -1;
-				// }
-
-				// if (namingScheme_.find("SeriesInstanceUID") == std::string::npos && namingScheme_.find("OrthancSeriesID") == std::string::npos)
-				// {
-				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
-				// 	return -1;
-				// }
-
-				// if (namingScheme_.find("SOPInstanceUID") == std::string::npos && namingScheme_.find("OrthancInstanceID") == std::string::npos)
-				// {
-				// 	LOG(ERROR) << "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or 4 Orthanc identifiers ({PatientOrthancID}, {StudyOrthancID}, {SeriesOrthancID}, {SOPInstanceUID}).";
-				// 	return -1;
-				// }
-			}
+				if ((namingScheme_.find("PatientID") == std::string::npos)
+          || (namingScheme_.find("StudyInstanceUID") == std::string::npos)
+          || (namingScheme_.find("SeriesInstanceUID") == std::string::npos)
+          || (namingScheme_.find("SOPInstanceUID") == std::string::npos))
+				{
+					throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "To avoid files from being overwritten, your naming scheme shall alway contain either the {UUID} or 4 DICOM identifiers ({PatientID}, {StudyInstanceUID}, {SeriesInstanceUID}, {SOPInstanceUID}) or the Orthanc Instance ID ({OrthancInstanceID}).");
+				}
+      }
 		}
 	}
 
@@ -226,6 +219,13 @@ namespace OrthancPlugins
 
 		if (!tags.isNull())
 		{ 
+      // If, at some point, we enable saving other attachments using tags, we must re-think the duplicate files avoidance scheme:
+      // E.g: using the 4 DICOM IDs or the OrthancInstanceID in the path is not sufficient anymore to avoid duplicates.
+      if (type != OrthancPluginContentType_Dicom)
+      {
+    		return GetLegacyRelativePath(uuid);
+      }
+
 			std::vector<std::string> folderNames;
 			Orthanc::Toolbox::SplitString(folderNames, namingScheme_, '/');
 
@@ -302,11 +302,11 @@ namespace OrthancPlugins
 			return path;
 		}
 
-		return GetLegacyRelativePath(uuid); //, true);
+		return GetLegacyRelativePath(uuid);
 	}
 
 
-	boost::filesystem::path PathGenerator::GetLegacyRelativePath(const std::string& uuid) //)
+	boost::filesystem::path PathGenerator::GetLegacyRelativePath(const std::string& uuid)
 	{
 		if (!Orthanc::Toolbox::IsUuid(uuid))
 		{

@@ -32,7 +32,7 @@ namespace OrthancPlugins
   class PathGenerator
   {
   public:
-    static void SetNamingScheme(const std::string& namingScheme);
+    static void SetNamingScheme(const std::string& namingScheme, bool isOverwriteInstances);
 
     static bool IsDefaultNamingScheme();
 

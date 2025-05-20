@@ -144,13 +144,13 @@ namespace OrthancPlugins
     // find attachment uuid from path -> lookup in DB the Key-Value Store provided by Orthanc
     std::string serializedPathOwner;
 
-    if (kvsAdoptedPath_.Get(serializedPathOwner, path))
+    if (kvsAdoptedPath_.GetValue(serializedPathOwner, path))
     {
       PathOwner owner = PathOwner::FromString(serializedPathOwner);
       std::string urlToDelete;
       owner.GetUrlForDeletion(urlToDelete);
 
-      kvsAdoptedPath_.Delete(path);
+      kvsAdoptedPath_.DeleteKey(path);
 
       // trigger the deletion of this attachment
       LOG(INFO) << "Deleting attachment " << urlToDelete << " for path " << path;

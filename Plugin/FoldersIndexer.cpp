@@ -239,7 +239,7 @@ namespace OrthancPlugins
 
     std::string serialized;
 
-    if (kvsIndexedPaths_.Get(serialized, path.string()))
+    if (kvsIndexedPaths_.GetValue(serialized, path.string()))
     {
       // this is not a new file but it might have been modified
       IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
@@ -253,7 +253,7 @@ namespace OrthancPlugins
           AbandonFile(path.string());
         }
 
-        kvsIndexedPaths_.Delete(path.string());
+        kvsIndexedPaths_.DeleteKey(path.string());
       }
       else
       {
@@ -308,7 +308,7 @@ namespace OrthancPlugins
           AbandonFile(path);
         }
 
-        kvsIndexedPaths_.Delete(path);
+        kvsIndexedPaths_.DeleteKey(path);
       }
 
       if (throttleDelayMs_ > 0)
@@ -321,7 +321,7 @@ namespace OrthancPlugins
   bool FoldersIndexer::IsFileIndexed(const std::string& path)
   {
     std::string serializedNotUsed;
-    return kvsIndexedPaths_.Get(serializedNotUsed, path);
+    return kvsIndexedPaths_.GetValue(serializedNotUsed, path);
   }
 
 }

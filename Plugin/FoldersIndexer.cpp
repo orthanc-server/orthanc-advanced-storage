@@ -284,47 +284,36 @@ namespace OrthancPlugins
 
   void FoldersIndexer::LookupDeletedFiles()
   {
-    bool done = false;
-    uint64_t offset = 0;
+    std::unique_ptr<OrthancPlugins::KeyValueStore::Iterator> iterator(kvsIndexedPaths_.CreateIterator());
 
-    while (!done)
+    while (iterator->Next())
     {
-      std::list<std::string> paths;
-
       // Note, we might have millions of files so we don't request them all at once.
       // The keys list might change while we are browsing it (e.g. if there is another indexer plugin
       // in an Orthanc running at the same time) so we might miss a few values.
       // Hopefully, we'll get these values at the next run of the LookupDeletedFiles function.
-      done = kvsIndexedPaths_.GetAllKeys(paths, offset, 1000);
-      offset += 1000;
-      
-      for (std::list<std::string>::const_iterator it = paths.begin(); it != paths.end(); ++it)
-      {
-        const std::string& path = *it;
+
+      const std::string path = iterator->GetKey();
         
-        if (!Orthanc::SystemToolbox::IsRegularFile(path))
+      if (!Orthanc::SystemToolbox::IsRegularFile(path))
+      {
+        // the file has been deleted
+        const std::string serialized = iterator->GetValue();
+
+        IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
+
+        if (indexedPath.IsDicom())
         {
-          // the file has been deleted
-          std::string serialized;
-          if (kvsIndexedPaths_.Get(serialized, path))
-          {
-            IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
-
-            if (indexedPath.IsDicom())
-            {
-              LOG(INFO) << "Indexer: a DICOM file has been deleted, abandoning it: " << path;
-              AbandonFile(path);
-            }
-
-            kvsIndexedPaths_.Delete(path);
-            offset--;  // since we have deleted one file, modify the offset
-          }
+          LOG(INFO) << "Indexer: a DICOM file has been deleted, abandoning it: " << path;
+          AbandonFile(path);
         }
 
-        if (throttleDelayMs_ > 0)
-        {
-          boost::this_thread::sleep(boost::posix_time::milliseconds(throttleDelayMs_));
-        }     
+        kvsIndexedPaths_.Delete(path);
+      }
+
+      if (throttleDelayMs_ > 0)
+      {
+        boost::this_thread::sleep(boost::posix_time::milliseconds(throttleDelayMs_));
       }
     }
   }

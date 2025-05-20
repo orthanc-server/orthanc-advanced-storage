@@ -66,7 +66,7 @@ def Download(x):
 commands = []
 
 for f in FILES:
-    commands.append([ 'default',
+    commands.append([ PLUGIN_SDK_BRANCH,   # TODO - REPLACE by 'default'
                       f[0],
                       os.path.join(f[1], os.path.basename(f[0])) ])
 

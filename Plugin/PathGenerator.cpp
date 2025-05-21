@@ -50,7 +50,7 @@ namespace OrthancPlugins
       }
       else
       {
-        if (namingScheme_.find("{OrthancInstanceID}") != std::string::npos)
+        if (namingScheme_.find("{UUID}") != std::string::npos || namingScheme_.find("{OrthancInstanceID}") != std::string::npos)
 				{
           return;
 				}

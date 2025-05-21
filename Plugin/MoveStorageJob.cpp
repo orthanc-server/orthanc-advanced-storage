@@ -22,6 +22,7 @@
 #include "Logging.h"
 #include "Constants.h"
 #include "Helpers.h"
+#include <SystemToolbox.h>
 
 namespace fs = boost::filesystem;
 
@@ -102,8 +103,20 @@ namespace OrthancPlugins
     } 
     catch (const fs::filesystem_error& e) 
     {
-      LOG(ERROR) << "Unable to move attachment " << currentCustomData.GetUuid() << ": " << e.what();
-      return false;
+      if (e.code() == boost::system::errc::file_exists)
+      {
+        if (!Orthanc::SystemToolbox::CompareFilesMD5(currentPath.string(), newPath.string()))
+        {
+          LOG(ERROR) << "MoveAttachment: Destination file already exists and is different from current file: " << newPath.string();
+          return false;
+        }
+        // else, files are identical -> continue and write the customData in DB
+      }
+      else
+      {
+        LOG(ERROR) << "Unable to move attachment " << currentCustomData.GetUuid() << ": " << e.what();
+        return false;
+      }
     }
 
     // Write the new customData in DB

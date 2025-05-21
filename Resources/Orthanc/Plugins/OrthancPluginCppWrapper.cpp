@@ -4425,7 +4425,7 @@ namespace OrthancPlugins
   {
     OrthancPluginErrorCode code = OrthancPluginStoreKeyValue(OrthancPlugins::GetGlobalContext(), storeId_.c_str(),
                                                              key.c_str(), value.c_str(), value.size());
-    if (code == OrthancPluginErrorCode_Success)
+    if (code != OrthancPluginErrorCode_Success)
     {
       ORTHANC_PLUGINS_THROW_PLUGIN_ERROR_CODE(code);
     }

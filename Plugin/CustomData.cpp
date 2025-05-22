@@ -152,48 +152,28 @@ namespace OrthancPlugins
 
     if (customDataSize != 0)
     {
-      std::map<std::string, std::string> customDataDico;
-      std::string customDataString(reinterpret_cast<const char*>(customDataBuffer), customDataSize);
+      Json::Value v;
+      OrthancPlugins::ReadJson(v, customDataBuffer, customDataSize);
 
-      std::vector<std::string> customDataVariables;
-      Orthanc::Toolbox::SplitString(customDataVariables, customDataString, ';');
-
-      for (std::vector<std::string>::const_iterator it = customDataVariables.begin(); it != customDataVariables.end(); ++it)
+      if (v[SERIALIZATION_KEY_VERSION].asInt() == 1)
       {
-        std::vector<std::string> customDataVariable;
-        Orthanc::Toolbox::SplitString(customDataVariable, *it, '=');
+        cd.isOwner_ = v[SERIALIZATION_KEY_IS_OWNER].asBool();
 
-        if (customDataVariable.size() == 2)
+        if (!cd.isOwner_ && !v.isMember(SERIALIZATION_KEY_PATH))
         {
-          customDataDico[customDataVariable[0]] = customDataVariable[1];
-        }        
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError, std::string("Advanced Storage - an adopted file has no path ! - ") + uuid);
+        }
+        
+        cd.path_ = v[SERIALIZATION_KEY_PATH].asString();
+        
+        if (v.isMember(SERIALIZATION_KEY_STORAGE_ID))
+        {
+          cd.storageId_ = v[SERIALIZATION_KEY_STORAGE_ID].asString();
+        }
       }
-
-      if (customDataDico.find(SERIALIZATION_KEY_VERSION) == customDataDico.end())
+      else
       {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange, std::string("Advanced Storage - no version found for attachment ") + uuid);
-      }
-
-      if (customDataDico[SERIALIZATION_KEY_VERSION] != "1")
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange, std::string("Advanced Storage - unknown version found for attachment ") + uuid + " : " + customDataDico[SERIALIZATION_KEY_VERSION]);
-      }
-
-      cd.isOwner_ = customDataDico.find(SERIALIZATION_KEY_IS_OWNER) != customDataDico.end() && customDataDico[SERIALIZATION_KEY_IS_OWNER] == "1";
-
-      if (!cd.isOwner_ && customDataDico.find(SERIALIZATION_KEY_PATH) == customDataDico.end())
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange, std::string("Advanced Storage - an adopted file has no path ! - ") + uuid);
-      }
-
-      if (customDataDico.find(SERIALIZATION_KEY_PATH) != customDataDico.end())
-      {
-        cd.path_ = customDataDico[SERIALIZATION_KEY_PATH];
-      }
-
-      if (customDataDico.find(SERIALIZATION_KEY_STORAGE_ID) != customDataDico.end())
-      {
-        cd.storageId_ = customDataDico[SERIALIZATION_KEY_STORAGE_ID];
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, std::string("Invalid CustomData version: ") + boost::lexical_cast<std::string>(v[SERIALIZATION_KEY_VERSION].asInt()));
       }
     }
 
@@ -304,24 +284,24 @@ namespace OrthancPlugins
       return;
     }
 
-    std::vector<std::string> customDataVariables;
-    customDataVariables.push_back(std::string(SERIALIZATION_KEY_VERSION) + "=1");
+    Json::Value v;
+    v[SERIALIZATION_KEY_VERSION] = 1;
 
     // no need to store the path if we are in the default mode
     // unless it is a file that has been adopted
     if (!PathGenerator::IsDefaultNamingScheme() || isOwner_)
     { 
-      customDataVariables.push_back(std::string(SERIALIZATION_KEY_PATH) + "=" + path_.string());
+      v[SERIALIZATION_KEY_PATH] = path_.string();
     }
 
     if (IsMultipleStoragesEnabled() && isOwner_)
     {
-      customDataVariables.push_back(std::string(SERIALIZATION_KEY_STORAGE_ID) + "=" + storageId_);
+      v[SERIALIZATION_KEY_STORAGE_ID] = storageId_;
     }
 
-    customDataVariables.push_back(std::string(SERIALIZATION_KEY_IS_OWNER) + "=" + (isOwner_ ? "1" : "0"));
+    v[SERIALIZATION_KEY_IS_OWNER] = isOwner_;
 
-    Orthanc::Toolbox::JoinStrings(serialized, customDataVariables, ";");
+    OrthancPlugins::WriteFastJson(serialized, v);
   }
 
   bool CustomData::HasStorage(const std::string& storageId)

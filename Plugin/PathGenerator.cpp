@@ -32,6 +32,12 @@
 namespace OrthancPlugins
 {
 	static std::string namingScheme_;
+	std::string PathGenerator::otherAttachmentsPrefix_;
+
+  void PathGenerator::SetOtherAttachmentsPrefix(const std::string& prefix)
+  {
+    otherAttachmentsPrefix_ = prefix;
+  }
 
 	void PathGenerator::SetNamingScheme(const std::string& namingScheme, bool isOverwriteInstances)
 	{
@@ -301,6 +307,10 @@ namespace OrthancPlugins
 
 			return path;
 		}
+    else if (type != OrthancPluginContentType_Dicom && !otherAttachmentsPrefix_.empty())
+    {
+      return boost::filesystem::path(otherAttachmentsPrefix_) / GetLegacyRelativePath(uuid);
+    }
 
 		return GetLegacyRelativePath(uuid);
 	}

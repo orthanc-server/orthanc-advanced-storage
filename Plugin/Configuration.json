@@ -10,6 +10,7 @@
       "Storages" : {
         // Therefore, storage path may change in case you move your data from one place to another.
         // The storgae ids may never change since they are stored in DB; you can only add new ones.
+        // You should use very short strings as they are stored in DB for each attachment.
         "1" : "/var/lib/orthanc/db",
         "2" : "/mnt/disk2/orthanc"
       },

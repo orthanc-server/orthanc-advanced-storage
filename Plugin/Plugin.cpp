@@ -641,9 +641,13 @@ extern "C"
         {
           response["IsIndexed"] = foldersIndexer_->IsFileIndexed(customData.GetAbsolutePath().string());
         }
+  
+        OrthancPlugins::AnswerJson(response, output);
       }
-
-      OrthancPlugins::AnswerJson(response, output);
+      else
+      {
+        OrthancPlugins::AnswerHttpError(404, output);
+      }
     }
   }
 
@@ -689,6 +693,7 @@ extern "C"
       std::string otherAttachmentsPrefix = advancedStorageConfiguration.GetStringValue(CONFIG_OTHER_ATTACHMENTS_PREFIX, "");
       LOG(WARNING) << "Prefix path to the other attachments root: " << otherAttachmentsPrefix;
       CustomData::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
+      PathGenerator::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
       
       // if we have enabled multiple storage after files have been saved without this plugin, we still need the default StorageDirectory
       CustomData::SetOrthancCoreRootPath(orthancConfiguration.GetStringValue(CONFIG_STORAGE_DIRECTORY, "OrthancStorage"));

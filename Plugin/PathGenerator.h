@@ -31,8 +31,11 @@ namespace OrthancPlugins
 
   class PathGenerator
   {
+    static std::string otherAttachmentsPrefix_;
+  
   public:
     static void SetNamingScheme(const std::string& namingScheme, bool isOverwriteInstances);
+    static void SetOtherAttachmentsPrefix(const std::string& prefix);
 
     static bool IsDefaultNamingScheme();
 

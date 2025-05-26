@@ -27,5 +27,7 @@ static const char* const JOB_TYPE_MOVE_STORAGE = "MoveStorage";
 static const char* const KEY_RESOURCES = "Resources";
 static const char* const KEY_TARGET_STORAGE_ID = "TargetStorageId";
 static const char* const KEY_INSTANCES = "Instances";
-static const char* const KEY_CONTENT = "Content";
+static const char* const KEY_MOVE_STORAGE_JOB_RESOURCES = "ResourcesToMove";
+static const char* const KEY_MOVE_STORAGE_JOB_ERROR_DETAILS = "ErrorDetails";
+static const char* const KEY_MOVE_STORAGE_JOB_TARGET_STORAGE_ID = "TargetStorageId";
 

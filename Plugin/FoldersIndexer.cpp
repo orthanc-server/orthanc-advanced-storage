@@ -38,6 +38,7 @@ namespace OrthancPlugins
   static const char* SERIALIZATION_KEY_IS_DICOM = "d";
   static const char* SERIALIZATION_KEY_SIZE = "s";
   static const char* SERIALIZATION_KEY_TIME = "t";
+  static const char* SERIALIZATION_KEY_DELETED = "r";
 
 
   class IndexedPath
@@ -45,13 +46,15 @@ namespace OrthancPlugins
     std::time_t time_;
     uintmax_t   size_;
     bool        isDicom_;
+    bool        hasBeenDeletedByOrthanc_; // has been deleted from Orthanc by a DELETE resource
 
     IndexedPath();
   public:
-    IndexedPath(const std::time_t& time, uintmax_t size, bool isDicom) :
+    IndexedPath(const std::time_t& time, uintmax_t size, bool isDicom, bool hasBeenDeletedByOrthanc = false) :
       time_(time),
       size_(size),
-      isDicom_(isDicom)
+      isDicom_(isDicom),
+      hasBeenDeletedByOrthanc_(hasBeenDeletedByOrthanc)
     {
     }
 
@@ -64,7 +67,8 @@ namespace OrthancPlugins
       {
         return IndexedPath(static_cast<std::time_t>(v[SERIALIZATION_KEY_TIME].asUInt64()),
                            static_cast<uintmax_t>(v[SERIALIZATION_KEY_SIZE].asUInt64()),
-                           v[SERIALIZATION_KEY_IS_DICOM].asBool());
+                           v[SERIALIZATION_KEY_IS_DICOM].asBool(),
+                           v[SERIALIZATION_KEY_DELETED].asBool());
       }
       else
       {
@@ -79,6 +83,7 @@ namespace OrthancPlugins
       v[SERIALIZATION_KEY_IS_DICOM] = isDicom_;
       v[SERIALIZATION_KEY_SIZE] = Json::Value::UInt64(size_);
       v[SERIALIZATION_KEY_TIME] = Json::Value::UInt64(time_);
+      v[SERIALIZATION_KEY_DELETED] = hasBeenDeletedByOrthanc_;
 
       OrthancPlugins::WriteFastJson(serialized, v);
     }
@@ -91,6 +96,11 @@ namespace OrthancPlugins
     bool IsDicom() const
     {
       return isDicom_;
+    }
+
+    void MarkAsDeletedByOrthanc()
+    {
+      hasBeenDeletedByOrthanc_ = true;
     }
   };
 
@@ -322,6 +332,19 @@ namespace OrthancPlugins
   {
     std::string serializedNotUsed;
     return kvsIndexedPaths_.GetValue(serializedNotUsed, path);
+  }
+
+  void FoldersIndexer::MarkAsDeletedByOrthanc(const std::string& path)
+  {
+    std::string serialized;
+    if (kvsIndexedPaths_.GetValue(serialized, path))
+    {
+      IndexedPath ip = IndexedPath::CreateFromSerializedString(serialized);
+      ip.MarkAsDeletedByOrthanc();
+      
+      ip.ToString(serialized);
+      kvsIndexedPaths_.Store(path, serialized);
+    }
   }
 
 }

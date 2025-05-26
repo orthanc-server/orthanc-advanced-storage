@@ -40,4 +40,7 @@ namespace OrthancPlugins
                  bool takeOwnership);
 
   void AbandonFile(const std::string& path); 
+
+  void MarkAdoptedFileAsDeleted(const std::string& path);
+
 }

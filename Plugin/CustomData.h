@@ -84,6 +84,11 @@ namespace OrthancPlugins
       return uuid_;
     }
 
+    const std::string& GetStorageId() const
+    {
+      return storageId_;
+    }
+    
   protected:
     static bool IsMultipleStoragesEnabled();
   };

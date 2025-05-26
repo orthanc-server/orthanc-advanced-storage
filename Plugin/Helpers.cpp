@@ -153,7 +153,7 @@ namespace OrthancPlugins
       kvsAdoptedPath_.DeleteKey(path);
 
       // trigger the deletion of this attachment
-      LOG(INFO) << "Deleting attachment " << urlToDelete << " for path " << path;
+      LOG(INFO) << "Deleting resource " << urlToDelete << " for path " << path;
       OrthancPlugins::RestApiDelete(urlToDelete, true);
     }
     else
@@ -162,4 +162,8 @@ namespace OrthancPlugins
     }
   }
 
+  void MarkAdoptedFileAsDeleted(const std::string& path)
+  {
+    kvsAdoptedPath_.DeleteKey(path);
+  }
 }

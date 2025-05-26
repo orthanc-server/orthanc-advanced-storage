@@ -230,6 +230,15 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
   if (!cd.IsOwner())
   {
     LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ") since the file has been adopted.";
+
+    // remove it fromt the adopted paths
+    MarkAdoptedFileAsDeleted(path.string());
+
+    // notify the indexer that the file has been deleted (if it has been indexed by the indexer)
+    if (foldersIndexer_.get() != NULL)
+    {
+      foldersIndexer_->MarkAsDeletedByOrthanc(path.string());
+    }
   }
   else
   {
@@ -590,7 +599,16 @@ extern "C"
 
     std::unique_ptr<MoveStorageJob> job(CreateMoveStorageJob(targetStorage, instances, resourcesForJobContent));
 
-    OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestPayload, job.release());
+    try
+    {
+      OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestPayload, job.release());
+    }
+    catch (Orthanc::OrthancException ex)
+    {
+      LOG(ERROR) << "Failed to move instances: " << ex.What();
+      // ANSWER buffer
+      OrthancPlugins::AnswerHttpError(400, output);
+    }
     return OrthancPluginErrorCode_Success;
   }
 
@@ -640,6 +658,11 @@ extern "C"
         if (foldersIndexer_.get() != NULL)
         {
           response["IsIndexed"] = foldersIndexer_->IsFileIndexed(customData.GetAbsolutePath().string());
+        }
+        
+        if (customData.IsOwner())
+        {
+          response["StorageId"] = customData.GetStorageId();
         }
   
         OrthancPlugins::AnswerJson(response, output);

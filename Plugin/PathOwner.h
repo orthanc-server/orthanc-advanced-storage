@@ -31,7 +31,6 @@ namespace OrthancPlugins
 
   class PathOwner
   {
-    std::string                 attachmeUuid_;
     std::string                 resourceId_;
     OrthancPluginResourceType   resourceType_;
     OrthancPluginContentType    contentType_;
@@ -43,8 +42,7 @@ namespace OrthancPlugins
 
     static PathOwner FromString(const std::string& serialized);
 
-    static PathOwner Create(//const std::string& attachmentUuid,
-                            const std::string& resourceId,
+    static PathOwner Create(const std::string& resourceId,
                             OrthancPluginResourceType resourceType,
                             OrthancPluginContentType contentType);
 

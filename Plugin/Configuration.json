@@ -82,6 +82,39 @@
     // Notes:
     // - When using a prefix, the path is saved in the SQL DB.  Therefore, you may change the OtherAttachmentsPrefix
     // at any time and you'll still be able to access previously saved files.
-    "OtherAttachmentsPrefix": ""
+    "OtherAttachmentsPrefix": "",
+
+    // This is the Indexer mode configuration.  Folders are scanned for DICOM files.
+    // Any DICOM file that is found is adopted by Orthanc which means that Orthanc will only
+    // reference it but will never delete it.
+    // This replaces the former orthanc-indexer plugin.
+    "Indexer" : {
+      // Set "Enable" to true to enable the indexer
+      "Enable": false,
+      
+      // List of folders to scan
+      "Folders": [ "/tmp/dicom-files" ],
+      
+      // Interval (in seconds) between the end of a scan and the start of the next scan.
+      "Interval": 10,
+
+      // Interval (in milliseconds) between the handling of 2 scanned files.  This reduces the
+      // workload on Orthanc while scanning files.
+      "ThrottleDelayMs": 0
+    },
+    
+    // This is the Delayed Deletion mode configuration.  On some file systems, file deletions might
+    // be slow.  When the delayed deletion moe is enabled, when Orthanc needs to delete a file,
+    // the file is scheduled for later deletion and the delete operation seems fast from the user point of view.
+    // Orthanc will then delete all scheduled files asynchronously. 
+    // This replaces the former delayed-deletion plugin.
+    "DelayedDeletion": {
+      // Set "Enable" to true to enable the delayed deletion moe
+      "Enable": false,
+
+      // Interval (in milliseconds) between the deletion of 2 scheduled files.  This reduces the
+      // workload on the disk while deleting files.
+      "ThrottleDelayMs": 0
+    }
   }
 }

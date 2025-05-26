@@ -28,7 +28,6 @@ namespace fs = boost::filesystem;
 
 namespace OrthancPlugins
 {
-
   MoveStorageJob::MoveStorageJob(const std::string& targetStorageId,
                                 const std::vector<std::string>& instances,
                                 const Json::Value& resourceForJobContent)
@@ -38,16 +37,31 @@ namespace OrthancPlugins
       processedInstancesCount_(0),
       resourceForJobContent_(resourceForJobContent)
   {
-    UpdateContent(resourceForJobContent);
+    UpdateContent();
     
     Json::Value serialized;
     Serialize(serialized);
     UpdateSerialized(serialized);
   }
 
+  void MoveStorageJob::UpdateContent()
+  {
+    Json::Value jobContent;
+    jobContent[KEY_MOVE_STORAGE_JOB_RESOURCES] = resourceForJobContent_;
+    jobContent[KEY_MOVE_STORAGE_JOB_TARGET_STORAGE_ID] = targetStorageId_;
+
+    if (!errorDetails_.empty())
+    {
+      jobContent[KEY_MOVE_STORAGE_JOB_ERROR_DETAILS] = errorDetails_;
+    }
+
+    OrthancJob::UpdateContent(jobContent); 
+  }
+
+
   void MoveStorageJob::Serialize(Json::Value& target) const
   {
-    target[KEY_CONTENT] = resourceForJobContent_;
+    target[KEY_MOVE_STORAGE_JOB_RESOURCES] = resourceForJobContent_;
     target[KEY_TARGET_STORAGE_ID] = targetStorageId_;
     target[KEY_INSTANCES] = Json::arrayValue;
 
@@ -58,11 +72,13 @@ namespace OrthancPlugins
 
   }
 
-  static bool MoveAttachment(const CustomData currentCustomData, const std::string& targetStorageId)
+  bool MoveStorageJob::MoveAttachment(const CustomData& currentCustomData, const std::string& targetStorageId)
   {
     if (!currentCustomData.IsOwner())
     {
-      LOG(WARNING) << "Unable to move attachment " << currentCustomData.GetUuid() << " because Orthanc is not owning the file";
+      errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because Orthanc is not owning the file";
+      UpdateContent();
+      LOG(ERROR) << errorDetails_;
       return false;
     }
 
@@ -76,7 +92,9 @@ namespace OrthancPlugins
       // Check if source file exists
       if (!fs::exists(currentPath)) 
       {
-        LOG(ERROR) << "Unable to move attachment " << currentCustomData.GetUuid() << " because the file could not be found: " << currentPath;
+        errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because the file could not be found: " + currentPath.string();
+        UpdateContent();
+        LOG(ERROR) << errorDetails_;
         return false;
       }
 
@@ -85,7 +103,9 @@ namespace OrthancPlugins
       {
         if (!fs::is_directory(newPath.parent_path()))
         {
-          LOG(ERROR) << "Unable to move attachment " << currentCustomData.GetUuid() << " because the target directory already exists as a file: " << newPath.parent_path();
+          errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because the target directory already exists as a file: " + newPath.parent_path().string();
+          UpdateContent();
+          LOG(ERROR) << errorDetails_;
           return false;
         }
       }
@@ -93,7 +113,9 @@ namespace OrthancPlugins
       {
         if (!fs::create_directories(newPath.parent_path()))
         {
-          LOG(ERROR) << "Unable to move attachment " << currentCustomData.GetUuid() << ", unable to create the target directory: " << newPath.parent_path();
+          errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " unable to create the target directory:: " + newPath.parent_path().string();
+          UpdateContent();
+          LOG(ERROR) << errorDetails_;
           return false;
         }
       }
@@ -107,14 +129,18 @@ namespace OrthancPlugins
       {
         if (!Orthanc::SystemToolbox::CompareFilesMD5(currentPath.string(), newPath.string()))
         {
-          LOG(ERROR) << "MoveAttachment: Destination file already exists and is different from current file: " << newPath.string();
+          errorDetails_= std::string("MoveAttachment: Destination file already exists and is different from current file: ") + newPath.string();
+          UpdateContent();
+          LOG(ERROR) << errorDetails_;
           return false;
         }
         // else, files are identical -> continue and write the customData in DB
       }
       else
       {
-        LOG(ERROR) << "Unable to move attachment " << currentCustomData.GetUuid() << ": " << e.what();
+        errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + ": " + e.what();
+        UpdateContent();
+        LOG(ERROR) << errorDetails_;
         return false;
       }
     }
@@ -122,7 +148,9 @@ namespace OrthancPlugins
     // Write the new customData in DB
     if (!UpdateAttachmentCustomData(currentCustomData.GetUuid(), newCustomData))
     {
-      LOG(ERROR) << "Unable to update custom data for attachment " << currentCustomData.GetUuid() << ", deleting newly copied file";
+      errorDetails_= std::string("Unable to update custom data for attachment ") + currentCustomData.GetUuid() + ", deleting newly copied file";
+      UpdateContent();
+      LOG(ERROR) << errorDetails_;
 
       fs::remove(newPath);
       RemoveEmptyParentDirectories(newPath);
@@ -136,7 +164,7 @@ namespace OrthancPlugins
     return true;
   }
 
-  static bool MoveInstance(const std::string& instanceId, const std::string& targetStorageId)
+  bool MoveStorageJob::MoveInstance(const std::string& instanceId, const std::string& targetStorageId)
   {
     LOG(INFO) << "Moving instance to storage " << targetStorageId;
 

@@ -23,21 +23,29 @@
 
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
-
 #include <json/json.h>
 
 #include <vector>
 
 namespace OrthancPlugins
 {
+  class CustomData;
+
   class MoveStorageJob : public OrthancPlugins::OrthancJob
   {
     std::string               targetStorageId_;
     std::vector<std::string>  instances_;
     size_t                    processedInstancesCount_;
     Json::Value               resourceForJobContent_;
+    std::string               errorDetails_;
 
     void Serialize(Json::Value& target) const;
+
+    bool MoveInstance(const std::string& instanceId, const std::string& targetStorageId);
+
+    bool MoveAttachment(const CustomData& currentCustomData, const std::string& targetStorageId);
+
+    void UpdateContent();
   public:
     MoveStorageJob(const std::string& targetStorageId,
                   const std::vector<std::string>& instances,

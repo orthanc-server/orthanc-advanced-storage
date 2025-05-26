@@ -60,6 +60,8 @@ namespace OrthancPlugins
     void WorkerThread();
   
     bool IsFileIndexed(const std::string& path);
+
+    void MarkAsDeletedByOrthanc(const std::string& path);
   };
 
 }

@@ -82,6 +82,8 @@ static const char* const CONFIG_INDEXER_ENABLE = "Enable";
 static const char* const CONFIG_INDEXER_FOLDERS = "Folders";
 static const char* const CONFIG_INDEXER_INTERVAL = "Interval";
 static const char* const CONFIG_INDEXER_THROTTLE_DELAY_MS = "ThrottleDelayMs";
+static const char* const CONFIG_INDEXER_PARSED_EXTENSIONS = "ParsedExtensions";
+static const char* const CONFIG_INDEXER_SKIPPED_EXTENSIONS = "SkippedExtensions";
 static const char* const CONFIG_DELAYED_DELETION = "DelayedDeletion";
 static const char* const CONFIG_DELAYED_DELETION_ENABLE = "Enable";
 static const char* const CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS = "ThrottleDelayMs";
@@ -774,7 +776,8 @@ extern "C"
         if (indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE, false))
         {
 
-          std::list<std::string> indexedFolders;
+          std::list<std::string> indexedFolders, parsedExtensions, skippedExtensions;
+
           unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
           unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
 
@@ -785,10 +788,20 @@ extern "C"
                                             "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
           }
 
+          indexerConfig.LookupListOfStrings(parsedExtensions, CONFIG_INDEXER_PARSED_EXTENSIONS, true);
+          indexerConfig.LookupListOfStrings(skippedExtensions, CONFIG_INDEXER_SKIPPED_EXTENSIONS, true);
+
+          if (parsedExtensions.size() > 0 && skippedExtensions.size() > 0)
+          {
+            throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
+                                            std::string("You can not configure \"") + CONFIG_INDEXER_PARSED_EXTENSIONS + "\" and \"" + CONFIG_INDEXER_SKIPPED_EXTENSIONS + "\" at the same time");
+          }
+
+
           LOG(WARNING) << "creating FoldersIndexer";
     
           boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs));
+          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions));
         }
         else
         {

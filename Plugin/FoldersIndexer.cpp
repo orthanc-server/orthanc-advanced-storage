@@ -29,6 +29,7 @@
 #include "FoldersIndexer.h"
 #include "Helpers.h"
 #include <stack>
+#include <algorithm>
 
 
 namespace OrthancPlugins
@@ -111,9 +112,15 @@ namespace OrthancPlugins
   };
 
 
-  FoldersIndexer::FoldersIndexer(const std::list<std::string>& folders, unsigned int intervalInSeconds, unsigned int throttleDelayMs) :
+  FoldersIndexer::FoldersIndexer(const std::list<std::string>& folders, 
+                                 unsigned int intervalInSeconds, 
+                                 unsigned int throttleDelayMs,
+                                 const std::list<std::string>& parsedExentions,
+                                 const std::list<std::string>& skippedExentions) :
     intervalInSeconds_(intervalInSeconds),
     throttleDelayMs_(throttleDelayMs),
+    parsedExtensions_(parsedExentions),
+    skippedExtensions_(skippedExentions),
     isRunning_(false),
     kvsIndexedPaths_(KVS_ID_INDEXER_PATH)
   {
@@ -198,6 +205,23 @@ namespace OrthancPlugins
               case boost::filesystem::reparse_file:
                 try
                 {
+                  // check extensions
+                  if (parsedExtensions_.size() > 0 || skippedExtensions_.size() > 0)
+                  {
+                    std::string extension = boost::filesystem::path(current->path()).extension().string();
+                    if (parsedExtensions_.size() > 0 && std::find(parsedExtensions_.begin(), parsedExtensions_.end(), extension) == parsedExtensions_.end())
+                    {
+                      ++current;
+                      continue;
+                    }
+
+                    if (skippedExtensions_.size() > 0 && std::find(skippedExtensions_.begin(), skippedExtensions_.end(), extension) != skippedExtensions_.end())
+                    {
+                      ++current;
+                      continue;
+                    }
+                  }
+
                   ProcessFile(current->path());
                   
                   if (throttleDelayMs_ > 0)

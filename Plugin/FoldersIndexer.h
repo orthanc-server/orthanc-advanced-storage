@@ -38,6 +38,8 @@ namespace OrthancPlugins
     std::list<fs::path>       folders_;
     unsigned int              intervalInSeconds_;
     unsigned int              throttleDelayMs_;
+    std::list<std::string>    parsedExtensions_;
+    std::list<std::string>    skippedExtensions_;
     
     bool                      isRunning_;
     boost::thread             thread_;
@@ -50,7 +52,12 @@ namespace OrthancPlugins
     void LookupDeletedFiles();
 
   public:
-    FoldersIndexer(const std::list<std::string>& folders, unsigned int intervalInSeconds, unsigned int throttleDelayMs);
+    FoldersIndexer(const std::list<std::string>& folders, 
+                   unsigned int intervalInSeconds, 
+                   unsigned int throttleDelayMs,
+                   const std::list<std::string>& parsedExentions,
+                   const std::list<std::string>& skippedExentions);
+
     ~FoldersIndexer();
 
     void Start();

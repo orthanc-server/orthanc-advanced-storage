@@ -100,7 +100,15 @@
 
       // Interval (in milliseconds) between the handling of 2 scanned files.  This reduces the
       // workload on Orthanc while scanning files.
-      "ThrottleDelayMs": 0
+      "ThrottleDelayMs": 0,
+
+      // The list of file extensions to parse while indexing.  Any extension not in this list will not be parsed.
+      // This option can not be used together with "SkippedExtensions".
+      "ParsedExtensions": [],
+
+      // The list of file extensions to skip from indexing.  Any file ending with one of these extensions will not be parsed.
+      // This option can not be used together with "ParsedExtensions"
+      "SkippedExtensions": []
     },
     
     // This is the Delayed Deletion mode configuration.  On some file systems, file deletions might

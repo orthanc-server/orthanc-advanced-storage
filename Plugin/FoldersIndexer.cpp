@@ -102,6 +102,12 @@ namespace OrthancPlugins
     {
       hasBeenDeletedByOrthanc_ = true;
     }
+
+    bool HasBeenDeletedByOrthanc() const
+    {
+      return hasBeenDeletedByOrthanc_;
+    }
+
   };
 
 
@@ -312,10 +318,14 @@ namespace OrthancPlugins
 
         IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
 
-        if (indexedPath.IsDicom())
+        if (indexedPath.IsDicom() && !indexedPath.HasBeenDeletedByOrthanc())
         {
           LOG(INFO) << "Indexer: a DICOM file has been deleted, abandoning it: " << path;
           AbandonFile(path);
+        }
+        else
+        {
+          LOG(INFO) << "Indexer: a file has been deleted, removing it from the index: " << path;
         }
 
         kvsIndexedPaths_.DeleteKey(path);

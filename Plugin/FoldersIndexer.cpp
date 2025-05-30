@@ -338,7 +338,8 @@ namespace OrthancPlugins
       if (!Orthanc::SystemToolbox::IsRegularFile(path))
       {
         // the file has been deleted
-        const std::string serialized = iterator->GetValue();
+        std::string serialized;
+        iterator->GetValue(serialized);
 
         IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
 

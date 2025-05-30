@@ -34,18 +34,19 @@ namespace OrthancPlugins
   static OrthancPlugins::KeyValueStore kvsAdoptedPath_("advst-adopted-path");
 
 
-	CustomData GetAttachmentCustomData(const std::string& attachmentUuid)
-	{
-		OrthancPlugins::MemoryBuffer customDataBuffer;
-		if (OrthancPluginGetAttachmentCustomData(OrthancPlugins::GetGlobalContext(),
-		                                         attachmentUuid.c_str(),
-																						 *customDataBuffer) == OrthancPluginErrorCode_Success)
-		{
-			return CustomData::FromString(attachmentUuid, customDataBuffer.GetData(), customDataBuffer.GetSize());
-		}
+  CustomData GetAttachmentCustomData(const std::string& attachmentUuid)
+  {
+    OrthancPlugins::MemoryBuffer customDataBuffer;
+    if (OrthancPluginGetAttachmentCustomData(OrthancPlugins::GetGlobalContext(),
+                                             *customDataBuffer,
+                                             attachmentUuid.c_str()) == OrthancPluginErrorCode_Success)
+    {
+      return CustomData::FromString(attachmentUuid, customDataBuffer.GetData(), customDataBuffer.GetSize());
+    }
 
-		throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, std::string("Could not retrieve custom data for attachment ") + attachmentUuid);
-	}
+    throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, std::string("Could not retrieve custom data for attachment ") + attachmentUuid);
+  }
+
 
   bool UpdateAttachmentCustomData(const std::string& attachmentUuid, const CustomData& customData)
   {
@@ -107,15 +108,14 @@ namespace OrthancPlugins
     OrthancPlugins::MemoryBuffer attachmentUuidBuffer;
 
     OrthancPluginErrorCode res = OrthancPluginAdoptAttachment(OrthancPlugins::GetGlobalContext(),
+                                                              *createdResourceIdBuffer,
+                                                              *attachmentUuidBuffer,
+                                                              &storeStatus,
                                                               fileContent.data(),
                                                               fileContent.size(),
                                                               &fileInfo,
                                                               OrthancPluginResourceType_None,
-                                                              NULL,
-                                                              *createdResourceIdBuffer,
-                                                              *attachmentUuidBuffer,
-                                                              &storeStatus
-                                                              );
+                                                              NULL);
 
     if (res == OrthancPluginErrorCode_Success)
     {

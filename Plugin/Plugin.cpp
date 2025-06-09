@@ -181,7 +181,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         OrthancPluginContentType type,
                                         uint64_t rangeStart,
                                         const void* customData,
-                                        uint64_t customDataSize)
+                                        uint32_t customDataSize)
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   std::string path = cd.GetAbsolutePath().string();
@@ -224,7 +224,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
 OrthancPluginErrorCode StorageRemove(const char* uuid,
                                      OrthancPluginContentType type,
                                      const void* customData,
-                                     uint64_t customDataSize)
+                                     uint32_t customDataSize)
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();

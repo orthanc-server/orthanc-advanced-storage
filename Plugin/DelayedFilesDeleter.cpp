@@ -73,7 +73,7 @@ namespace OrthancPlugins
     while (isRunning_)
     {
       std::string pathToDelete;
-      while (queueFilesToDelete_.PopFront(pathToDelete) && isRunning_)
+      while (queueFilesToDelete_.DequeueFront(pathToDelete) && isRunning_)
       {
         try
         {
@@ -102,7 +102,7 @@ namespace OrthancPlugins
 
   void DelayedFilesDeleter::ScheduleFileDeletion(const std::string& path)
   {
-    queueFilesToDelete_.PushBack(path);
+    queueFilesToDelete_.Enqueue(path);
   }
 
   uint64_t DelayedFilesDeleter::GetPendingDeletionFilesCount()

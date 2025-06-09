@@ -1490,6 +1490,7 @@ extern "C"
    *
    * @param customData Custom, plugin-specific data associated with the attachment (out).
    * It must be allocated by the plugin using OrthancPluginCreateMemoryBuffer(). The core of Orthanc will free it.
+   * If the plugin does not generate custom data, leave `customData` unchanged; it will default to an empty value.
    * @param uuid The UUID of the file.
    * @param content The content of the file (might be compressed data).
    * @param size The size of the file.
@@ -1535,7 +1536,7 @@ extern "C"
     OrthancPluginContentType type,
     uint64_t rangeStart,
     const void* customData,
-    uint64_t customDataSize);
+    uint32_t customDataSize);
 
 
 
@@ -1556,7 +1557,7 @@ extern "C"
     const char* uuid,
     OrthancPluginContentType type,
     const void* customData,
-    uint64_t customDataSize);
+    uint32_t customDataSize);
 
 
   /**
@@ -9803,7 +9804,7 @@ extern "C"
     uint64_t    compressedSize;
     const char* compressedHash;
     const void* customData;
-    uint64_t    customDataSize;
+    uint32_t    customDataSize;
   } OrthancPluginAttachment2;
 
 
@@ -9879,8 +9880,8 @@ TODO_ATTACH_CUSTOM_DATA TODO TODO
   typedef struct
   {
     const char*                   attachmentUuid; /* in */
-    const char*                   customData;     /* in */
-    int64_t                       customDataSize; /* in */
+    const void*                   customData;     /* in */
+    uint32_t                      customDataSize; /* in */
   } _OrthancPluginUpdateAttachmentCustomData;
 
 
@@ -9893,8 +9894,8 @@ TODO_ATTACH_CUSTOM_DATA TODO TODO
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginUpdateAttachmentCustomData(
     OrthancPluginContext*         context,
     const char*                   attachmentUuid, /* in */
-    const char*                   customData,     /* in */
-    int64_t                       customDataSize  /* in */)
+    const void*                   customData,     /* in */
+    uint32_t                      customDataSize  /* in */)
   {
     _OrthancPluginUpdateAttachmentCustomData params;
     params.attachmentUuid = attachmentUuid;
@@ -9910,7 +9911,7 @@ TODO_ATTACH_CUSTOM_DATA TODO TODO
     const char*                   storeId;
     const char*                   key;
     const void*                   value;
-    uint64_t                      valueSize;
+    uint32_t                      valueSize;
   } _OrthancPluginStoreKeyValue;
 
   /**
@@ -9928,7 +9929,7 @@ TODO_ATTACH_CUSTOM_DATA TODO TODO
     const char*                   storeId,  /* in */
     const char*                   key,      /* in */
     const void*                   value,    /* in */
-    uint64_t                      valueSize /* in */)
+    uint32_t                      valueSize /* in */)
   {
     _OrthancPluginStoreKeyValue params;
     params.storeId = storeId;

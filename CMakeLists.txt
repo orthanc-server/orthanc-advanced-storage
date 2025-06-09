@@ -28,11 +28,11 @@ set(PLUGIN_VERSION "mainline" CACHE STRING "plugin version 'mainline' or '0.1.1'
 
 # This is the list of the versions of the Orthanc SDK against which
 # this plugin will compile
-set(ORTHANC_SDK_COMPATIBLE_VERSIONS "1.12.99")
+set(ORTHANC_SDK_COMPATIBLE_VERSIONS "1.12.8")
 
 
 if (PLUGIN_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
-  set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "1.12.99")
+  set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "1.12.8")
   set(ORTHANC_FRAMEWORK_DEFAULT_SOURCE "web")
   set(ORTHANC_PLUGIN_VERSION ${PLUGIN_VERSION})
 else()
@@ -53,7 +53,7 @@ set(ORTHANC_FRAMEWORK_ROOT "" CACHE STRING "Path to the Orthanc source directory
 
 # Advanced parameters to fine-tune linking against system libraries
 set(USE_SYSTEM_ORTHANC_SDK ON CACHE BOOL "Use the system version of the Orthanc plugin SDK")
-set(ORTHANC_SDK_VERSION "1.12.99" CACHE STRING "Version of the Orthanc plugin SDK to use, if not using the system version (can be \"1.12.99\", or \"framework\")")
+set(ORTHANC_SDK_VERSION "1.12.8" CACHE STRING "Version of the Orthanc plugin SDK to use, if not using the system version (can be \"1.12.8\", or \"framework\")")
 set(ORTHANC_FRAMEWORK_STATIC OFF CACHE BOOL "If linking against the Orthanc framework system library, indicates whether this library was statically linked")
 mark_as_advanced(ORTHANC_FRAMEWORK_STATIC)
 
@@ -110,8 +110,8 @@ if (STATIC_BUILD OR NOT USE_SYSTEM_ORTHANC_SDK)
     endif()
   endif()
 
-  if (ORTHANC_SDK_VERSION STREQUAL "1.12.99")
-    set(ORTHANC_SDK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Orthanc/Sdk-1.12.99)
+  if (ORTHANC_SDK_VERSION STREQUAL "1.12.8")
+    set(ORTHANC_SDK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Orthanc/Sdk-1.12.8)
   elseif (ORTHANC_SDK_VERSION STREQUAL "framework")
     set(tmp ${ORTHANC_FRAMEWORK_ROOT}/../../OrthancServer/Plugins/Include/)
     message(${tmp})

@@ -50,13 +50,13 @@ namespace OrthancPlugins
 
   bool UpdateAttachmentCustomData(const std::string& attachmentUuid, const CustomData& customData)
   {
-    std::string seriliazedCustomDataString;
-    customData.ToString(seriliazedCustomDataString);
+    std::string serializedCustomDataString;
+    customData.ToString(serializedCustomDataString);
 
-    return OrthancPluginUpdateAttachmentCustomData(OrthancPlugins::GetGlobalContext(),
-                                                   attachmentUuid.c_str(),
-                                                   seriliazedCustomDataString.c_str(),
-                                                   seriliazedCustomDataString.size()) == OrthancPluginErrorCode_Success;
+    return OrthancPluginSetAttachmentCustomData(OrthancPlugins::GetGlobalContext(),
+                                                attachmentUuid.c_str(),
+                                                serializedCustomDataString.c_str(),
+                                                serializedCustomDataString.size()) == OrthancPluginErrorCode_Success;
   }
 
   void RemoveEmptyParentDirectories(const fs::path& path)

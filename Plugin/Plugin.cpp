@@ -435,7 +435,7 @@ extern "C"
       std::string instanceId, attachmentUuid;
       OrthancPluginStoreStatus storeStatus;
 
-      AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), takeOwnership);
+      AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), takeOwnership, "" /* no custom data */);
 
       Json::Value response;
 

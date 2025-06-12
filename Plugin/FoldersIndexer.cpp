@@ -306,7 +306,7 @@ namespace OrthancPlugins
     std::string instanceId, attachmentUuid;
     OrthancPluginStoreStatus storeStatus;    
     
-    AdoptFile(instanceId, attachmentUuid, storeStatus, path.string(), false);
+    AdoptFile(instanceId, attachmentUuid, storeStatus, path.string(), false, "" /* no custom data */);
     bool isDicom = storeStatus == OrthancPluginStoreStatus_Success;
 
     if (isDicom)

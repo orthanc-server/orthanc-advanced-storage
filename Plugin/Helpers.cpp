@@ -82,40 +82,29 @@ namespace OrthancPlugins
                  std::string& attachmentUuid,
                  OrthancPluginStoreStatus& storeStatus,
                  const std::string& path, 
-                 bool takeOwnership)
+                 bool takeOwnership,  // TODO - This is unused!
+                 const std::string& customData)
   {
-    CustomData cd = CustomData::CreateForAdoption(path, takeOwnership);
-    std::string customDataString;
-    cd.ToString(customDataString);
+    if (static_cast<size_t>(static_cast<uint32_t>(customData.size())) != customData.size())
+    {
+      throw Orthanc::OrthancException(Orthanc::ErrorCode_NotEnoughMemory);
+    }
 
     std::string fileContent;
     Orthanc::SystemToolbox::ReadFile(fileContent, path, true);
-    std::string fileContentMD5;
-    Orthanc::Toolbox::ComputeMD5(fileContentMD5, fileContent);
-
-    OrthancPluginAttachment2 fileInfo;
-    fileInfo.compressedHash = fileContentMD5.c_str();
-    fileInfo.uncompressedHash = fileContentMD5.c_str();
-    fileInfo.uncompressedSize = fileContent.size();
-    fileInfo.compressedSize = fileContent.size();
-    fileInfo.contentType = OrthancPluginContentType_Dicom;
-    fileInfo.uuid = NULL;
-    fileInfo.compressionType = OrthancPluginCompressionType_None;
-    fileInfo.customData = customDataString.c_str();
-    fileInfo.customDataSize = customDataString.size();
 
     OrthancPlugins::MemoryBuffer createdResourceIdBuffer;
     OrthancPlugins::MemoryBuffer attachmentUuidBuffer;
 
-    OrthancPluginErrorCode res = OrthancPluginAdoptAttachment(OrthancPlugins::GetGlobalContext(),
-                                                              *createdResourceIdBuffer,
-                                                              *attachmentUuidBuffer,
-                                                              &storeStatus,
-                                                              fileContent.data(),
-                                                              fileContent.size(),
-                                                              &fileInfo,
-                                                              OrthancPluginResourceType_None,
-                                                              NULL);
+    OrthancPluginErrorCode res = OrthancPluginAdoptDicomInstance(
+      OrthancPlugins::GetGlobalContext(),
+      *createdResourceIdBuffer,
+      *attachmentUuidBuffer,
+      &storeStatus,
+      fileContent.data(),
+      fileContent.size(),
+      customData.empty() ? NULL : customData.c_str(),
+      customData.size());
 
     if (res == OrthancPluginErrorCode_Success)
     {

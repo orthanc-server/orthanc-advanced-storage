@@ -37,7 +37,8 @@ namespace OrthancPlugins
                  std::string& attachmentUuid,
                  OrthancPluginStoreStatus& storeStatus,
                  const std::string& path, 
-                 bool takeOwnership);
+                 bool takeOwnership,  // TODO - This is unused!
+                 const std::string& customData);
 
   void AbandonFile(const std::string& path); 
 

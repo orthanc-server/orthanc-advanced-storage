@@ -82,7 +82,6 @@ namespace OrthancPlugins
                  std::string& attachmentUuid,
                  OrthancPluginStoreStatus& storeStatus,
                  const std::string& path, 
-                 bool takeOwnership,  // TODO - This is unused!
                  const std::string& customData)
   {
     if (static_cast<size_t>(static_cast<uint32_t>(customData.size())) != customData.size())

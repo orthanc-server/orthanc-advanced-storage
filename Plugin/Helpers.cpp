@@ -82,9 +82,14 @@ namespace OrthancPlugins
                  std::string& attachmentUuid,
                  OrthancPluginStoreStatus& storeStatus,
                  const std::string& path, 
-                 const std::string& customData)
+                 bool takeOwnership)
   {
-    if (static_cast<size_t>(static_cast<uint32_t>(customData.size())) != customData.size())
+    CustomData cd = CustomData::CreateForAdoption(path, takeOwnership);
+    
+    std::string customDataString;
+    cd.ToString(customDataString);
+
+    if (static_cast<size_t>(static_cast<uint32_t>(customDataString.size())) != customDataString.size())
     {
       throw Orthanc::OrthancException(Orthanc::ErrorCode_NotEnoughMemory);
     }
@@ -102,8 +107,8 @@ namespace OrthancPlugins
       &storeStatus,
       fileContent.data(),
       fileContent.size(),
-      customData.empty() ? NULL : customData.c_str(),
-      customData.size());
+      customDataString.empty() ? NULL : customDataString.c_str(),
+      customDataString.size());
 
     if (res == OrthancPluginErrorCode_Success)
     {

@@ -13,9 +13,6 @@ import urllib.request
 TARGET = os.path.join(os.path.dirname(__file__), 'Orthanc')
 PLUGIN_SDK_VERSION = '1.12.8'
 
-# PLUGIN_SDK_BRANCH = 'Orthanc-%s' % PLUGIN_SDK_VERSION,
-PLUGIN_SDK_BRANCH = 'attach-custom-data'   # TODO - REMOVE
-
 REPOSITORY = 'https://orthanc.uclouvain.be/hg/orthanc/raw-file'
 
 FILES = [
@@ -66,13 +63,13 @@ def Download(x):
 commands = []
 
 for f in FILES:
-    commands.append([ PLUGIN_SDK_BRANCH,   # TODO - REPLACE by 'default'
+    commands.append([ 'default',
                       f[0],
                       os.path.join(f[1], os.path.basename(f[0])) ])
 
 for f in SDK:
     commands.append([
-        PLUGIN_SDK_BRANCH,
+        'default', # TODO - REPLACE BY: 'Orthanc-%s' % PLUGIN_SDK_VERSION,
         'OrthancServer/Plugins/Include/%s' % f,
         'Sdk-%s/%s' % (PLUGIN_SDK_VERSION, f)
     ])

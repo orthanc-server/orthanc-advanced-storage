@@ -469,7 +469,7 @@ extern "C"
     _OrthancPluginService_SetMetricsIntegerValue = 43,              /* New in Orthanc 1.12.1 */
     _OrthancPluginService_SetCurrentThreadName = 44,                /* New in Orthanc 1.12.2 */
     _OrthancPluginService_LogMessage = 45,                          /* New in Orthanc 1.12.4 */
-    _OrthancPluginService_AdoptAttachment = 46,                     /* New in Orthanc 1.12.8 */
+    _OrthancPluginService_AdoptDicomInstance = 46,                  /* New in Orthanc 1.12.8 */
     _OrthancPluginService_GetAttachmentCustomData = 47,             /* New in Orthanc 1.12.8 */
     _OrthancPluginService_SetAttachmentCustomData = 48,             /* New in Orthanc 1.12.8 */
     _OrthancPluginService_StoreKeyValue = 49,                       /* New in Orthanc 1.12.8 */
@@ -1145,14 +1145,14 @@ extern "C"
 
 
   /**
-   * The store status response to AdoptAttachment.
+   * The store status related to the adoption of a DICOM instance.
    **/
   typedef enum
   {
     OrthancPluginStoreStatus_Success = 0,         /*!< The file has been stored/adopted */
     OrthancPluginStoreStatus_AlreadyStored = 1,   /*!< The file has already been stored/adopted (only if OverwriteInstances is set to false)*/
     OrthancPluginStoreStatus_Failure = 2,         /*!< The file could not be stored/adopted */
-    OrthancPluginStoreStatus_FilteredOut = 3,     /*!< The file has been filtered out by a lua script or a plugin */
+    OrthancPluginStoreStatus_FilteredOut = 3,     /*!< The file has been filtered out by a Lua script or a plugin */
     OrthancPluginStoreStatus_StorageFull = 4,     /*!< The storage is full (only if MaximumStorageSize/MaximumPatientCount is set and MaximumStorageMode is Reject)*/
 
     _OrthancPluginStoreStatus_INTERNAL = 0x7fffffff
@@ -2132,13 +2132,17 @@ extern "C"
         sizeof(int32_t) != sizeof(OrthancPluginIdentifierConstraint) ||
         sizeof(int32_t) != sizeof(OrthancPluginInstanceOrigin) ||
         sizeof(int32_t) != sizeof(OrthancPluginJobStepStatus) ||
+        sizeof(int32_t) != sizeof(OrthancPluginJobStopReason) ||
         sizeof(int32_t) != sizeof(OrthancPluginConstraintType) ||
         sizeof(int32_t) != sizeof(OrthancPluginMetricsType) ||
         sizeof(int32_t) != sizeof(OrthancPluginDicomWebBinaryMode) ||
         sizeof(int32_t) != sizeof(OrthancPluginStorageCommitmentFailureReason) ||
+        sizeof(int32_t) != sizeof(OrthancPluginReceivedInstanceAction) ||
         sizeof(int32_t) != sizeof(OrthancPluginLoadDicomInstanceMode) ||
         sizeof(int32_t) != sizeof(OrthancPluginLogLevel) ||
-        sizeof(int32_t) != sizeof(OrthancPluginLogCategory))
+        sizeof(int32_t) != sizeof(OrthancPluginLogCategory) ||
+        sizeof(int32_t) != sizeof(OrthancPluginStoreStatus) ||
+        sizeof(int32_t) != sizeof(OrthancPluginQueueOrigin))
     {
       /* Mismatch in the size of the enumerations */
       return 0;
@@ -9796,58 +9800,73 @@ extern "C"
 
   typedef struct
   {
-    const char* uuid;
-    int32_t     contentType;
-    uint64_t    uncompressedSize;
-    const char* uncompressedHash;
-    int32_t     compressionType;
-    uint64_t    compressedSize;
-    const char* compressedHash;
-    const void* customData;
-    uint32_t    customDataSize;
-  } OrthancPluginAttachment2;
-
-
-  typedef struct
-  {
-    OrthancPluginMemoryBuffer*    createdResourceId;    /* out, in case the attachment is actually a new instance */
-    OrthancPluginMemoryBuffer*    attachmentUuid;       /* out */
-    OrthancPluginStoreStatus*     storeStatus;          /* out */
-    const void*                   buffer;               /* in */
-    uint64_t                      bufferSize;           /* in */
-    OrthancPluginAttachment2*     attachmentInfo;       /* in, note: uuid may not be defined */
-    OrthancPluginResourceType     attachToResourceType; /* in */
-    const char*                   attachToResourceId;   /* in, can be null in case the attachment is a new instance */
-  } _OrthancPluginAdoptAttachment;
+    OrthancPluginMemoryBuffer*    instanceId;
+    OrthancPluginMemoryBuffer*    attachmentUuid;
+    OrthancPluginStoreStatus*     storeStatus;
+    const void*                   dicom;
+    uint64_t                      dicomSize;
+    const void*                   customData;
+    uint32_t                      customDataSize;
+  } _OrthancPluginAdoptDicomInstance;
 
   /**
-   * @brief Request Orthanc to adopt an existing attachment.
+   * @brief Adopt a DICOM instance read from the filesystem.
+   *
+   * This function requests Orthanc to create a DICOM resource at the
+   * "Instance" level in its database, using the content of a DICOM
+   * instance read from the filesystem. The newly created DICOM
+   * resource is associated with an attachment whose content type is
+   * "OrthancPluginContentType_Dicom". The attachment is associated
+   * with the provided custom data.
+   *
+   * This function should only be used in combination with a custom
+   * storage area featuring support for custom data (i.e., installed
+   * using OrthancPluginRegisterStorageArea3()). The custom storage
+   * area is responsible for *not* duplicating the DICOM file into the
+   * storage area of Orthanc, hence the name "Adopt". The support for
+   * custom data is necessary for the custom storage area to
+   * distinguish between adopted and non-adopted DICOM instances.
+   *
+   * Check out the "AdoptDicomInstance" plugin in the source
+   * distribution of Orthanc for a working sample:
+   * https://orthanc.uclouvain.be/hg/orthanc/file/default/OrthancServer/Plugins/Samples/AdoptDicomInstance/
    *
    * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
-TODO_ATTACH_CUSTOM_DATA TODO TODO
+   * @param instanceId The target memory buffer that will be filled by
+   * the Orthanc core with the public identifier of the newly created
+   * instance. It must be freed with OrthancPluginFreeMemoryBuffer().
+   * @param attachmentUuid The target memory buffer that will be
+   * filled by the Orthanc core with the UUID of the newly created
+   * attachment corresponding to the adopted DICOM instance. It must
+   * be freed with OrthancPluginFreeMemoryBuffer().
+   * @param storeStatus Variable that will be filled by the Orthanc core
+   * with the status of store operation.
+   * @param dicom Pointer to the DICOM instance read from the filesystem.
+   * @param dicomSize Size of the DICOM instance.
+   * @param customData The custom data to associated with the attachment.
+   * @param customDataSize The size of the custom data.
+   * @return 0 if success, other value if error.
    **/
-  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginAdoptAttachment(
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginAdoptDicomInstance(
     OrthancPluginContext*         context,
-    OrthancPluginMemoryBuffer*    createdResourceId, /* out */
+    OrthancPluginMemoryBuffer*    instanceId,        /* out */
     OrthancPluginMemoryBuffer*    attachmentUuid,    /* out */
-    OrthancPluginStoreStatus*     storeStatus        /* out */,
-    const void*                   buffer,
-    uint64_t                      bufferSize,
-    OrthancPluginAttachment2*     attachmentInfo,
-    OrthancPluginResourceType     attachToResourceType,
-    const char*                   attachToResourceId)
+    OrthancPluginStoreStatus*     storeStatus,       /* out */
+    const void*                   dicom,
+    uint64_t                      dicomSize,
+    const void*                   customData,
+    uint32_t                      customDataSize)
   {
-    _OrthancPluginAdoptAttachment params;
-    params.createdResourceId = createdResourceId;
+    _OrthancPluginAdoptDicomInstance params;
+    params.instanceId = instanceId;
     params.attachmentUuid = attachmentUuid;
     params.storeStatus = storeStatus;
-    params.buffer = buffer;
-    params.bufferSize = bufferSize;
-    params.attachmentInfo = attachmentInfo;
-    params.attachToResourceType = attachToResourceType;
-    params.attachToResourceId = attachToResourceId;
+    params.dicom = dicom;
+    params.dicomSize = dicomSize;
+    params.customData = customData;
+    params.customDataSize = customDataSize;
 
-    return context->InvokeService(context, _OrthancPluginService_AdoptAttachment, &params);
+    return context->InvokeService(context, _OrthancPluginService_AdoptDicomInstance, &params);
   }
 
 

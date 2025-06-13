@@ -430,12 +430,12 @@ extern "C"
         throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
       }
       
-      bool takeOwnership = body.isMember("TakeOwnership") && body["TakeOwnership"].asBool();  // false by default 
+      // bool takeOwnership = body.isMember("TakeOwnership") && body["TakeOwnership"].asBool();  // false by default 
 
       std::string instanceId, attachmentUuid;
       OrthancPluginStoreStatus storeStatus;
 
-      AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), takeOwnership, "" /* no custom data */);
+      AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), "" /* no custom data */);
 
       Json::Value response;
 

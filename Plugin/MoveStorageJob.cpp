@@ -82,6 +82,14 @@ namespace OrthancPlugins
       return false;
     }
 
+    if (!currentCustomData.IsRelativePath())
+    {
+      errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because its path is an absolute path (the file has likely been adopted).  Try to reconstruct the resource to move the file to one of the Orthanc Storage";
+      UpdateContent();
+      LOG(ERROR) << errorDetails_;
+      return false;
+    }
+
     CustomData newCustomData = CustomData::CreateForMoveStorage(currentCustomData, targetStorageId);
 
     fs::path currentPath = currentCustomData.GetAbsolutePath();

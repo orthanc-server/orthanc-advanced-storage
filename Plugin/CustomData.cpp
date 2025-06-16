@@ -244,9 +244,9 @@ namespace OrthancPlugins
 
   boost::filesystem::path CustomData::GetAbsolutePath() const
   {
-    if (!isOwner_)
+    if (path_.is_absolute())
     {
-      return path_; // when the file has been adopted, the path is an absolute path
+      return path_;
     }
 
     boost::filesystem::path absolutePath;

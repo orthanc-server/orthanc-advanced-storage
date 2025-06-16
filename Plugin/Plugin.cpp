@@ -84,6 +84,7 @@ static const char* const CONFIG_INDEXER_INTERVAL = "Interval";
 static const char* const CONFIG_INDEXER_THROTTLE_DELAY_MS = "ThrottleDelayMs";
 static const char* const CONFIG_INDEXER_PARSED_EXTENSIONS = "ParsedExtensions";
 static const char* const CONFIG_INDEXER_SKIPPED_EXTENSIONS = "SkippedExtensions";
+static const char* const CONFIG_INDEXER_TAKE_OWNERSHIP = "TakeOwnership";
 static const char* const CONFIG_DELAYED_DELETION = "DelayedDeletion";
 static const char* const CONFIG_DELAYED_DELETION_ENABLE = "Enable";
 static const char* const CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS = "ThrottleDelayMs";
@@ -233,7 +234,7 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
   {
     LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ") since the file has been adopted.";
 
-    // remove it fromt the adopted paths
+    // remove it from the adopted paths
     MarkAdoptedFileAsDeleted(path.string());
 
     // notify the indexer that the file has been deleted (if it has been indexed by the indexer)
@@ -244,6 +245,22 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
   }
   else
   {
+    if (!cd.IsRelativePath()) // the file has been adopted and is now owned by Orthanc
+    {
+      // remove it from the adopted paths
+      MarkAdoptedFileAsDeleted(path.string());
+
+      {
+        boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and/or delayedDeletion pointer
+
+        // notify the indexer that the file has been deleted (if it has been indexed by the indexer)
+        if (foldersIndexer_.get() != NULL)
+        {
+          foldersIndexer_->MarkAsDeletedByOrthanc(path.string());
+        }
+      }
+    }
+
     try
     {
       {
@@ -655,7 +672,7 @@ extern "C"
         CustomData customData = OrthancPlugins::GetAttachmentCustomData(response["Uuid"].asString());
 
         response["Path"] = customData.GetAbsolutePath().string();
-        response["IsAdopted"] = !customData.IsOwner();
+        response["IsOwnedByOrthanc"] = customData.IsOwner();
         
         if (foldersIndexer_.get() != NULL)
         {
@@ -780,6 +797,7 @@ extern "C"
 
           unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
           unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+          bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
 
           if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
               indexedFolders.empty())
@@ -801,7 +819,7 @@ extern "C"
           LOG(WARNING) << "creating FoldersIndexer";
     
           boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions));
+          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership));
         }
         else
         {

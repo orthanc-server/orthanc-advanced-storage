@@ -74,6 +74,11 @@ namespace OrthancPlugins
 
     boost::filesystem::path GetAbsolutePath() const;
 
+    bool IsRelativePath() const
+    {
+      return !path_.is_absolute();
+    }
+
     bool IsOwner() const
     {
       return isOwner_;

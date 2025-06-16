@@ -116,11 +116,13 @@ namespace OrthancPlugins
                                  unsigned int intervalInSeconds, 
                                  unsigned int throttleDelayMs,
                                  const std::list<std::string>& parsedExentions,
-                                 const std::list<std::string>& skippedExentions) :
+                                 const std::list<std::string>& skippedExentions,
+                                 bool takeOwnership) :
     intervalInSeconds_(intervalInSeconds),
     throttleDelayMs_(throttleDelayMs),
     parsedExtensions_(parsedExentions),
     skippedExtensions_(skippedExentions),
+    takeOwnership_(takeOwnership),
     isRunning_(false),
     kvsIndexedPaths_(KVS_ID_INDEXER_PATH)
   {
@@ -306,7 +308,7 @@ namespace OrthancPlugins
     std::string instanceId, attachmentUuid;
     OrthancPluginStoreStatus storeStatus;    
     
-    AdoptFile(instanceId, attachmentUuid, storeStatus, path.string(), false);
+    AdoptFile(instanceId, attachmentUuid, storeStatus, path.string(), takeOwnership_);
     bool isDicom = storeStatus == OrthancPluginStoreStatus_Success;
 
     if (isDicom)

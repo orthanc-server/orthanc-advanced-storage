@@ -108,7 +108,12 @@
 
       // The list of file extensions to skip from indexing.  Any file ending with one of these extensions will not be parsed.
       // This option can not be used together with "ParsedExtensions"
-      "SkippedExtensions": []
+      "SkippedExtensions": [],
+
+      // Whether the files that are indexed will belong to Orthanc.
+      // If a file belongs to Orthanc, the file will be deleted when the related resource
+      // (patient/study/series/instance) is deleted.
+      "TakeOwnership": false
     },
     
     // This is the Delayed Deletion mode configuration.  On some file systems, file deletions might

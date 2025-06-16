@@ -56,7 +56,7 @@
     // Notes:
     // - To prevent files from being overwritten, it is very important that their path is unique !
     //   Therefore, your NamingScheme must always include:
-    //   - either the file {UUID} (this is mandatory in this Beta version !!!!!)
+    //   - either the file {UUID}
     //   - If you have not set "OverwriteInstances" to true, at least:
     //     - a patient identifier {PatientID} or {OrthancPatientID},
     //     - a study identifier {StudyInstanceUID} or {OrthancStudyID},

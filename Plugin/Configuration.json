@@ -102,7 +102,7 @@
 
       // Interval (in milliseconds) between the handling of 2 scanned files.  This reduces the
       // workload on Orthanc while scanning files.
-      "ThrottleDelayMs": 0,
+      "ThrottleDelayMs": 5,
 
       // The list of file extensions to parse while indexing.  Any extension not in this list will not be parsed.
       // This option can not be used together with "SkippedExtensions".
@@ -129,7 +129,7 @@
 
       // Interval (in milliseconds) between the deletion of 2 scheduled files.  This reduces the
       // workload on the disk while deleting files.
-      "ThrottleDelayMs": 0
+      "ThrottleDelayMs": 5
     }
   }
 }

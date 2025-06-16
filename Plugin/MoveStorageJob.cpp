@@ -129,7 +129,11 @@ namespace OrthancPlugins
       }
 
       // Copy the file
+#if BOOST_VERSION < 107400
       fs::copy_file(currentPath, newPath, fs::copy_option::fail_if_exists);
+#else
+      fs::copy_file(currentPath, newPath, fs::copy_options::fail_if_exists);
+#endif
     } 
     catch (const fs::filesystem_error& e) 
     {

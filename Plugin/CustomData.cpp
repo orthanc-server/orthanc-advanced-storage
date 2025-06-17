@@ -128,7 +128,8 @@ namespace OrthancPlugins
   }
 
   CustomData::CustomData() :
-    isOwner_(true)
+    isOwner_(true),
+    hasBeenAdopted_(false)
   {
   }
 
@@ -187,6 +188,7 @@ namespace OrthancPlugins
     // cd.uuid_  // stays empty in this case
     // cd.storageId_ // stays empty in this case
     cd.path_ = path;
+    cd.hasBeenAdopted_ = true;
 
     return cd;
   }
@@ -279,7 +281,7 @@ namespace OrthancPlugins
     serialized.clear();
 
     // if we use defaults, no need to store anything in the metadata, the plugin has the same behavior as the core of Orthanc
-    if (PathGenerator::IsDefaultNamingScheme() && !IsMultipleStoragesEnabled())
+    if (PathGenerator::IsDefaultNamingScheme() && !IsMultipleStoragesEnabled() && !hasBeenAdopted_)
     {
       return;
     }

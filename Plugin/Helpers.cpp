@@ -94,7 +94,7 @@ namespace OrthancPlugins
       throw Orthanc::OrthancException(Orthanc::ErrorCode_NotEnoughMemory);
     }
 
-    LOG(INFO) << "Adopt file custom data: " << customDataString;
+    // LOG(INFO) << "Adopt file custom data: " << customDataString;
 
     std::string fileContent;
     Orthanc::SystemToolbox::ReadFile(fileContent, path, true);

@@ -33,6 +33,7 @@ namespace OrthancPlugins
     bool                        isOwner_;
     std::string                 storageId_;
     std::string                 uuid_;
+    bool                        hasBeenAdopted_; // internal, not serialized
 
   protected:
     CustomData();

@@ -1,5 +1,10 @@
 ThirdPartyDownloads/
 .DS_Store
 .vscode/
+.vs/
 *~
 build/
+
+# when opening the project in Visual Studio:
+CMakeSettings.json
+out/

@@ -722,7 +722,7 @@ extern "C"
     bool enabled = advancedStorageConfiguration.GetBooleanValue(CONFIG_ENABLE, false);
     if (enabled)
     {
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32)
       LOG(WARNING) << "AdvancedStorage plugin is configuring Boost to use UTF-16 for path since it is running on Windows.";
       boost::filesystem::path::imbue(std::locale(std::locale(), new std::codecvt_utf8_utf16<wchar_t>()));
 #endif

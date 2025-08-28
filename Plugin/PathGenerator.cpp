@@ -28,6 +28,7 @@
 
 
 #include "PathGenerator.h"
+#include "Helpers.h"
 
 namespace OrthancPlugins
 {
@@ -302,7 +303,7 @@ namespace OrthancPlugins
 					boost::replace_all(folderName, "{.ext}", GetExtension(type, isCompressed));
 				}
 
-				path /= folderName;
+				path /= OrthancPlugins::path_from_utf8(folderName);
 			}
 
 			return path;

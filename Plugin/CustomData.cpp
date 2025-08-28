@@ -28,6 +28,7 @@
 
 #include "CustomData.h"
 #include "PathGenerator.h"
+#include "Helpers.h"
 
 
 namespace OrthancPlugins
@@ -165,7 +166,7 @@ namespace OrthancPlugins
           throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError, std::string("Advanced Storage - an adopted file has no path ! - ") + uuid);
         }
         
-        cd.path_ = v[SERIALIZATION_KEY_PATH].asString();
+        cd.path_ = OrthancPlugins::path_from_utf8(v[SERIALIZATION_KEY_PATH].asString());
         
         if (v.isMember(SERIALIZATION_KEY_STORAGE_ID))
         {
@@ -293,7 +294,7 @@ namespace OrthancPlugins
     // unless it is a file that has been adopted
     if (!PathGenerator::IsDefaultNamingScheme() || isOwner_)
     { 
-      v[SERIALIZATION_KEY_PATH] = path_.string();
+      v[SERIALIZATION_KEY_PATH] = OrthancPlugins::path_to_utf8(path_);
     }
 
     if (IsMultipleStoragesEnabled() && isOwner_)

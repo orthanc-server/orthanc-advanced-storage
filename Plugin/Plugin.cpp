@@ -147,7 +147,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
     std::string seriliazedCustomDataString;
     cd.ToString(seriliazedCustomDataString);
 
-    LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + absolutePath.string() + ")";
+    LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + OrthancPlugins::path_to_utf8(absolutePath) + ")";
 
     if (fs::exists(absolutePath.parent_path()))
     {
@@ -191,7 +191,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
 
-  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
+  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + OrthancPlugins::path_to_utf8(path.string()) + ")";
 
   if (!Orthanc::SystemToolbox::IsRegularFile(path))
   {
@@ -278,7 +278,7 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
         }
       }
 
-      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
+      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + OrthancPlugins::path_to_utf8(path.string()) + ")";
 
       fs::remove(path);
 

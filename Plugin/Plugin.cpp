@@ -722,10 +722,33 @@ extern "C"
     bool enabled = advancedStorageConfiguration.GetBooleanValue(CONFIG_ENABLE, false);
     if (enabled)
     {
-#if defined(_WIN32)
-      LOG(WARNING) << "AdvancedStorage plugin is configuring Boost to use UTF-16 for path since it is running on Windows.";
-      boost::filesystem::path::imbue(std::locale(std::locale(), new std::codecvt_utf8_utf16<wchar_t>()));
-#endif
+//#if defined(_WIN32)
+//      LOG(WARNING) << "AdvancedStorage plugin is configuring Boost to use UTF-16 for path since it is running on Windows.";
+//      boost::filesystem::path::imbue(std::locale(std::locale(), new std::codecvt_utf8_utf16<wchar_t>()));
+//#endif
+
+      // Print sizeof wchar_t so you know if it's UTF-16 (Windows) or UTF-32 (Linux)
+      LOG(INFO) << "-----------------";
+      LOG(INFO) << "sizeof(wchar_t): " << sizeof(wchar_t);
+
+      // Report what Boost.Filesystem uses internally for path
+      if (typeid(fs::path::string_type) == typeid(std::wstring)) {
+        LOG(INFO) << "Boost.Filesystem path::string_type is std::wstring";
+      }
+      else if (typeid(fs::path::string_type) == typeid(std::string)) {
+        LOG(INFO) << "Boost.Filesystem path::string_type is std::string";
+      }
+      else {
+        LOG(INFO) << "Boost.Filesystem path::string_type is some other type";
+      }
+
+      // Show what happens when you create a path from UTF-8
+      std::string utf8_example = "тест.txt";
+      fs::path p(utf8_example);
+
+      LOG(INFO) << "path.native().size() = " << p.native().size() << "\n";
+      LOG(INFO) << "path.native() typeid: " << typeid(p.native()).name() << "\n";
+      LOG(INFO) << "-----------------";
 
       fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
       overwriteInstances_ = orthancConfiguration.GetBooleanValue(CONFIG_OVERWRITE_INSTANCES, false);

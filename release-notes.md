@@ -1,3 +1,9 @@
+Pending changes in the mainline
+===============================
+
+Fix:
+- Added support for Cyrillic and other non ASCII-only path.
+
 0.1.1 (2025-06-16)
 ==================
 

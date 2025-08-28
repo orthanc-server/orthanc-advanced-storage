@@ -43,6 +43,10 @@
 #include <map>
 #include <list>
 #include <time.h>
+#if defined(_WIN32) || defined(__CYGWIN__)
+#include <locale>
+#include <codecvt>
+#endif
 
 #include "CustomData.h"
 #include "PathGenerator.h"
@@ -160,7 +164,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
       }
     }
 
-    Orthanc::SystemToolbox::WriteFile(content, size, absolutePath.string(), fsyncOnWrite_);
+    Orthanc::SystemToolbox::WriteFile(content, size, absolutePath, fsyncOnWrite_);
 
     OrthancPluginCreateMemoryBuffer(OrthancPlugins::GetGlobalContext(), customData, seriliazedCustomDataString.size());
     memcpy(customData->data, seriliazedCustomDataString.data(), seriliazedCustomDataString.size());
@@ -185,9 +189,9 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         uint32_t customDataSize)
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
-  std::string path = cd.GetAbsolutePath().string();
+  boost::filesystem::path path = cd.GetAbsolutePath();
 
-  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path + ")";
+  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
 
   if (!Orthanc::SystemToolbox::IsRegularFile(path))
   {
@@ -718,6 +722,11 @@ extern "C"
     bool enabled = advancedStorageConfiguration.GetBooleanValue(CONFIG_ENABLE, false);
     if (enabled)
     {
+#if defined(_WIN32) || defined(__CYGWIN__)
+      LOG(WARNING) << "AdvancedStorage plugin is configuring Boost to use UTF-16 for path since it is running on Windows.";
+      boost::filesystem::path::imbue(std::locale(std::locale(), new std::codecvt_utf8_utf16<wchar_t>()));
+#endif
+
       fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
       overwriteInstances_ = orthancConfiguration.GetBooleanValue(CONFIG_OVERWRITE_INSTANCES, false);
 

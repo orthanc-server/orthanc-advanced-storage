@@ -161,4 +161,57 @@ namespace OrthancPlugins
   {
     kvsAdoptedPath_.DeleteKey(path);
   }
+
+#ifdef _WIN32
+  std::wstring Utf8ToWString(const std::string& str)
+  {
+    if (str.empty())
+    {
+      return std::wstring();
+    }
+    
+    int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), NULL, 0);
+    
+    std::wstring wstr(sizeNeeded, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(),&wstr[0], sizeNeeded);
+    
+    return wstr;
+  }
+
+  std::string WStringToUtf8(const std::wstring& wstr)
+  {
+    if (wstr.empty())
+    {
+      return std::string();
+    }
+
+    int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), NULL, 0, NULL, NULL);
+    
+    std::string str(sizeNeeded, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), &str[0], sizeNeeded, NULL, NULL);
+    
+    return str;
+  }
+
+#endif
+
+  boost::filesystem::path PathFromUtf8(const std::string& utf8)
+  {
+#ifdef _WIN32
+    return boost::filesystem::path(Utf8ToWString(utf8));
+#else
+    return boost::filesystem::path(utf8); // POSIX: std::string is UTF-8
+#endif
+  }
+
+  std::string PathToUtf8(const boost::filesystem::path& p)
+  {
+#ifdef _WIN32
+    return WStringToUtf8(p.wstring());
+#else
+    return p.string(); // POSIX: already UTF-8
+#endif
+  }
+
+
 }

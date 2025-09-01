@@ -303,7 +303,7 @@ namespace OrthancPlugins
 					boost::replace_all(folderName, "{.ext}", GetExtension(type, isCompressed));
 				}
 
-				path /= OrthancPlugins::path_from_utf8(folderName);
+				path /= OrthancPlugins::PathFromUtf8(folderName);
 			}
 
 			return path;

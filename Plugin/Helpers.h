@@ -48,48 +48,12 @@ namespace OrthancPlugins
   void MarkAdoptedFileAsDeleted(const std::string& path);
 
 #ifdef _WIN32
-  // --- UTF-8 -> std::wstring ---
-  inline std::wstring utf8_to_wstring(const std::string& str) {
-    if (str.empty()) return std::wstring();
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0,
-      str.c_str(), (int)str.size(),
-      NULL, 0);
-    std::wstring wstr(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0,
-      str.c_str(), (int)str.size(),
-      &wstr[0], size_needed);
-    return wstr;
-  }
+  std::wstring Utf8ToWString(const std::string& str);
 
-  // --- std::wstring -> UTF-8 ---
-  inline std::string wstring_to_utf8(const std::wstring& wstr) {
-    if (wstr.empty()) return std::string();
-    int size_needed = WideCharToMultiByte(CP_UTF8, 0,
-      wstr.c_str(), (int)wstr.size(),
-      NULL, 0, NULL, NULL);
-    std::string str(size_needed, 0);
-    WideCharToMultiByte(CP_UTF8, 0,
-      wstr.c_str(), (int)wstr.size(),
-      &str[0], size_needed, NULL, NULL);
-    return str;
-  }
+  std::string WStringToUtf8(const std::wstring& wstr);
 #endif
 
-  // --- UTF-8 string -> filesystem::path ---
-  inline boost::filesystem::path path_from_utf8(const std::string& utf8) {
-#ifdef _WIN32
-    return boost::filesystem::path(utf8_to_wstring(utf8));
-#else
-    return boost::filesystem::path(utf8); // POSIX: std::string is UTF-8
-#endif
-  }
-
-  // --- filesystem::path -> UTF-8 string ---
-  inline std::string path_to_utf8(const boost::filesystem::path& p) {
-#ifdef _WIN32
-    return wstring_to_utf8(p.wstring());
-#else
-    return p.string(); // POSIX: already UTF-8
-#endif
-  }
+  boost::filesystem::path PathFromUtf8(const std::string& utf8);
+  
+  std::string PathToUtf8(const boost::filesystem::path& p);
 }

@@ -43,10 +43,10 @@
 #include <map>
 #include <list>
 #include <time.h>
-#if defined(_WIN32) || defined(__CYGWIN__)
-#include <locale>
-#include <codecvt>
-#endif
+//#if defined(_WIN32) || defined(__CYGWIN__)
+//#include <locale>
+//#include <codecvt>
+//#endif
 
 #include "CustomData.h"
 #include "PathGenerator.h"

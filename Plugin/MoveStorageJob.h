@@ -1,6 +1,5 @@
 /**
  * Cloud storage plugins for Orthanc
- * Copyright (C) 2020-2023 Osimis S.A., Belgium
  * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
  * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *

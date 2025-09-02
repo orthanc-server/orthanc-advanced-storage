@@ -2,8 +2,9 @@
  * Orthanc - A Lightweight, RESTful DICOM Store
  * Copyright (C) 2012-2016 Sebastien Jodogne, Medical Physics
  * Department, University Hospital of Liege, Belgium
- * Copyright (C) 2017-2022 Osimis S.A., Belgium
- * Copyright (C) 2021-2022 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
+ * Copyright (C) 2017-2023 Osimis S.A., Belgium
+ * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
+ * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -72,12 +73,13 @@ namespace OrthancPlugins
   {
     while (isRunning_)
     {
-      std::string pathToDelete;
-      while (queueFilesToDelete_.DequeueFront(pathToDelete) && isRunning_)
+      std::string pathToDeleteUtf8Str;
+      while (queueFilesToDelete_.DequeueFront(pathToDeleteUtf8Str) && isRunning_)
       {
         try
         {
-          LOG(INFO) << "Delayed deletion of file " << pathToDelete;
+          LOG(INFO) << "Delayed deletion of file " << pathToDeleteUtf8Str;
+          boost::filesystem::path pathToDelete = Orthanc::SystemToolbox::PathFromUtf8(pathToDeleteUtf8Str);
 
           fs::remove(pathToDelete);
 

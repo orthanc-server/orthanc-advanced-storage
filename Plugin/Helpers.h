@@ -2,8 +2,9 @@
  * Orthanc - A Lightweight, RESTful DICOM Store
  * Copyright (C) 2012-2016 Sebastien Jodogne, Medical Physics
  * Department, University Hospital of Liege, Belgium
- * Copyright (C) 2017-2022 Osimis S.A., Belgium
- * Copyright (C) 2021-2022 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
+ * Copyright (C) 2017-2023 Osimis S.A., Belgium
+ * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
+ * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -25,9 +26,6 @@
 #include "CustomData.h"
 #include <boost/filesystem.hpp>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 namespace OrthancPlugins
 {
@@ -46,14 +44,4 @@ namespace OrthancPlugins
   void AbandonFile(const std::string& path); 
 
   void MarkAdoptedFileAsDeleted(const std::string& path);
-
-#ifdef _WIN32
-  std::wstring Utf8ToWString(const std::string& str);
-
-  std::string WStringToUtf8(const std::wstring& wstr);
-#endif
-
-  boost::filesystem::path PathFromUtf8(const std::string& utf8);
-  
-  std::string PathToUtf8(const boost::filesystem::path& p);
 }

@@ -180,6 +180,8 @@ namespace OrthancPlugins
 {
   typedef std::map<std::string, std::string>  HttpHeaders;
 
+  typedef std::map<std::string, std::string>  GetArguments;
+
   typedef void (*RestCallback) (OrthancPluginRestOutput* output,
                                 const char* url,
                                 const OrthancPluginHttpRequest* request);
@@ -229,6 +231,10 @@ namespace OrthancPlugins
 
 #if ORTHANC_PLUGINS_VERSION_IS_ABOVE(1, 7, 0)
     void Assign(const std::string& s);
+#endif
+
+#if ORTHANC_PLUGINS_VERSION_IS_ABOVE(1, 7, 0)
+    void AssignJson(const Json::Value& value);
 #endif
 
     // This transfers ownership from "other" to "this"
@@ -1427,6 +1433,9 @@ void GetHttpHeaders(HttpHeaders& result, const OrthancPluginHttpRequest* request
 // helper method to re-serialize the get arguments from the SDK into a string
 void SerializeGetArguments(std::string& output, const OrthancPluginHttpRequest* request);
 
+// helper method to convert Get arguments from the plugin SDK to a std::map
+void GetGetArguments(GetArguments& result, const OrthancPluginHttpRequest* request);
+
 #if HAS_ORTHANC_PLUGIN_WEBDAV == 1
   class IWebDavCollection : public boost::noncopyable
   {
@@ -1584,6 +1593,9 @@ void SerializeGetArguments(std::string& output, const OrthancPluginHttpRequest* 
     void AddRequestHeader(const std::string& key,
                           const std::string& value);
 
+    void SetRequestHeader(const std::string& key,
+                          const std::string& value);
+
     const HttpHeaders& GetRequestHeaders() const
     {
       return requestHeaders_;
@@ -1614,10 +1626,14 @@ void SerializeGetArguments(std::string& output, const OrthancPluginHttpRequest* 
       return requestBody_;
     }
 
+    // Execute only
     bool Execute();
 
+    // Forward response as is
+    void ForwardAnswer(OrthancPluginContext* context, OrthancPluginRestOutput* output);
+
     // Execute and forward the response as is
-    void Forward(OrthancPluginContext* context, OrthancPluginRestOutput* output);
+    void ExecuteAndForwardAnswer(OrthancPluginContext* context, OrthancPluginRestOutput* output);
 
     uint16_t GetHttpStatus() const;
 
@@ -1641,7 +1657,7 @@ void SerializeGetArguments(std::string& output, const OrthancPluginHttpRequest* 
       OrthancPluginKeysValuesIterator  *iterator_;
 
     public:
-      Iterator(OrthancPluginKeysValuesIterator  *iterator);
+      explicit Iterator(OrthancPluginKeysValuesIterator *iterator);
 
       ~Iterator();
 

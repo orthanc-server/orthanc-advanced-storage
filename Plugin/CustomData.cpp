@@ -1,9 +1,7 @@
 /**
  * Orthanc - A Lightweight, RESTful DICOM Store
- * Copyright (C) 2012-2016 Sebastien Jodogne, Medical Physics
- * Department, University Hospital of Liege, Belgium
- * Copyright (C) 2017-2022 Osimis S.A., Belgium
- * Copyright (C) 2021-2022 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
+ * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
+ * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -28,6 +26,7 @@
 
 #include "CustomData.h"
 #include "PathGenerator.h"
+#include "Helpers.h"
 
 
 namespace OrthancPlugins
@@ -84,7 +83,7 @@ namespace OrthancPlugins
 
   void CustomData::SetStorageRootPath(const std::string& storageId, const std::string& rootPath)
   {
-    storagesRootPaths_[storageId] = rootPath;
+    storagesRootPaths_[storageId] = Orthanc::SystemToolbox::PathFromUtf8(rootPath);
   }
 
   boost::filesystem::path CustomData::GetStorageRootPath(const std::string& storageId)
@@ -104,7 +103,7 @@ namespace OrthancPlugins
 
   void CustomData::SetOrthancCoreRootPath(const std::string& rootPath)
   {
-    orthancCoreRootPath_ = rootPath;
+    orthancCoreRootPath_ = Orthanc::SystemToolbox::PathFromUtf8(rootPath);
   }
 
   boost::filesystem::path CustomData::GetOrthancCoreRootPath()
@@ -165,7 +164,7 @@ namespace OrthancPlugins
           throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError, std::string("Advanced Storage - an adopted file has no path ! - ") + uuid);
         }
         
-        cd.path_ = v[SERIALIZATION_KEY_PATH].asString();
+        cd.path_ = Orthanc::SystemToolbox::PathFromUtf8(v[SERIALIZATION_KEY_PATH].asString());
         
         if (v.isMember(SERIALIZATION_KEY_STORAGE_ID))
         {
@@ -205,16 +204,17 @@ namespace OrthancPlugins
 
     boost::filesystem::path rootPath = CustomData::GetCurrentWriteRootPath();
     boost::filesystem::path absolutePath = rootPath / cd.path_;
+    std::string absolutPathUtf8Str = Orthanc::SystemToolbox::PathToUtf8(absolutePath);
 
     // check that the final path is not 'above' the root path (this could happen if e.g., a PatientName is ../../../../toto)
     // fs::canonical() can not be used for that since the file needs to exist
     // so far, we'll just forbid path containing '..' since they might be suspicious.
     // We can not accept '=' either because it is used in the serialization.
-    if (absolutePath.string().find("..") != std::string::npos || absolutePath.string().find("=") != std::string::npos)
+    if (absolutPathUtf8Str.find("..") != std::string::npos || absolutPathUtf8Str.find("=") != std::string::npos)
     {
       if (!otherAttachmentsPrefix_.empty())
       {
-        cd.path_ = otherAttachmentsPrefix_ / PathGenerator::GetLegacyRelativePath(uuid);
+        cd.path_ = Orthanc::SystemToolbox::PathFromUtf8(otherAttachmentsPrefix_) / PathGenerator::GetLegacyRelativePath(uuid);
       }
       else
       {
@@ -222,14 +222,14 @@ namespace OrthancPlugins
       }
       
       boost::filesystem::path absoluteLegacyPath = rootPath / cd.path_;
-      LOG(WARNING) << "Advanced Storage - WAS02 - Path is suspicious since it contains '..' or '=': '" << absolutePath.string() << "' will be stored in '" << absoluteLegacyPath << "'";
+      LOG(WARNING) << "Advanced Storage - WAS02 - Path is suspicious since it contains '..' or '=': '" << absolutPathUtf8Str << "' will be stored in '" << Orthanc::SystemToolbox::PathToUtf8(absoluteLegacyPath) << "'";
       absolutePath = absoluteLegacyPath;
     }
-    else if (absolutePath.string().size() > maxPathLength_) // check path length !!!!!, if too long, go back to legacy path and issue a warning
+    else if (absolutPathUtf8Str.size() > maxPathLength_) // check path length !!!!!, if too long, go back to legacy path and issue a warning
     {
       if (!otherAttachmentsPrefix_.empty())
       {
-        cd.path_ = otherAttachmentsPrefix_ / PathGenerator::GetLegacyRelativePath(uuid);
+        cd.path_ = Orthanc::SystemToolbox::PathFromUtf8(otherAttachmentsPrefix_) / PathGenerator::GetLegacyRelativePath(uuid);
       }
       else
       {
@@ -237,7 +237,7 @@ namespace OrthancPlugins
       }
 
       boost::filesystem::path absoluteLegacyPath = rootPath / cd.path_;
-      LOG(WARNING) << "Advanced Storage - WAS01 - Path is too long: '" << absolutePath.string() << "' will be stored in '" << absoluteLegacyPath << "'";
+      LOG(WARNING) << "Advanced Storage - WAS01 - Path is too long: '" << absolutPathUtf8Str << "' will be stored in '" << absoluteLegacyPath << "'";
       absolutePath = absoluteLegacyPath;
     }
 
@@ -293,7 +293,7 @@ namespace OrthancPlugins
     // unless it is a file that has been adopted
     if (!PathGenerator::IsDefaultNamingScheme() || isOwner_)
     { 
-      v[SERIALIZATION_KEY_PATH] = path_.string();
+      v[SERIALIZATION_KEY_PATH] = Orthanc::SystemToolbox::PathToUtf8(path_);
     }
 
     if (IsMultipleStoragesEnabled() && isOwner_)

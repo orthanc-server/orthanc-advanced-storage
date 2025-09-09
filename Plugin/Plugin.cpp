@@ -2,8 +2,9 @@
  * Orthanc - A Lightweight, RESTful DICOM Store
  * Copyright (C) 2012-2016 Sebastien Jodogne, Medical Physics
  * Department, University Hospital of Liege, Belgium
- * Copyright (C) 2017-2022 Osimis S.A., Belgium
- * Copyright (C) 2021-2022 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
+ * Copyright (C) 2017-2023 Osimis S.A., Belgium
+ * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
+ * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -143,7 +144,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
     std::string seriliazedCustomDataString;
     cd.ToString(seriliazedCustomDataString);
 
-    LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + absolutePath.string() + ")";
+    LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + Orthanc::SystemToolbox::PathToUtf8(absolutePath) + ")";
 
     if (fs::exists(absolutePath.parent_path()))
     {
@@ -160,7 +161,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
       }
     }
 
-    Orthanc::SystemToolbox::WriteFile(content, size, absolutePath.string(), fsyncOnWrite_);
+    Orthanc::SystemToolbox::WriteFile(content, size, absolutePath, fsyncOnWrite_);
 
     OrthancPluginCreateMemoryBuffer(OrthancPlugins::GetGlobalContext(), customData, seriliazedCustomDataString.size());
     memcpy(customData->data, seriliazedCustomDataString.data(), seriliazedCustomDataString.size());
@@ -185,9 +186,9 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         uint32_t customDataSize)
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
-  std::string path = cd.GetAbsolutePath().string();
+  boost::filesystem::path path = cd.GetAbsolutePath();
 
-  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path + ")";
+  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + Orthanc::SystemToolbox::PathToUtf8(path) + ")";
 
   if (!Orthanc::SystemToolbox::IsRegularFile(path))
   {
@@ -229,18 +230,19 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
+  std::string pathUtf8Str = Orthanc::SystemToolbox::PathToUtf8(path);
 
   if (!cd.IsOwner())
   {
-    LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ") since the file has been adopted.";
+    LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + pathUtf8Str + ") since the file has been adopted.";
 
     // remove it from the adopted paths
-    MarkAdoptedFileAsDeleted(path.string());
+    MarkAdoptedFileAsDeleted(pathUtf8Str);
 
     // notify the indexer that the file has been deleted (if it has been indexed by the indexer)
     if (foldersIndexer_.get() != NULL)
     {
-      foldersIndexer_->MarkAsDeletedByOrthanc(path.string());
+      foldersIndexer_->MarkAsDeletedByOrthanc(pathUtf8Str);
     }
   }
   else
@@ -248,7 +250,7 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
     if (!cd.IsRelativePath()) // the file has been adopted and is now owned by Orthanc
     {
       // remove it from the adopted paths
-      MarkAdoptedFileAsDeleted(path.string());
+      MarkAdoptedFileAsDeleted(pathUtf8Str);
 
       {
         boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and/or delayedDeletion pointer
@@ -256,7 +258,7 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
         // notify the indexer that the file has been deleted (if it has been indexed by the indexer)
         if (foldersIndexer_.get() != NULL)
         {
-          foldersIndexer_->MarkAsDeletedByOrthanc(path.string());
+          foldersIndexer_->MarkAsDeletedByOrthanc(pathUtf8Str);
         }
       }
     }
@@ -268,13 +270,13 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
 
         if (delayedFilesDeleter_.get() != NULL)
         {
-          LOG(INFO) << "Scheduling later deletion of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
-          delayedFilesDeleter_->ScheduleFileDeletion(path.string());
+          LOG(INFO) << "Scheduling later deletion of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + pathUtf8Str + ")";
+          delayedFilesDeleter_->ScheduleFileDeletion(pathUtf8Str);
           return OrthancPluginErrorCode_Success;
         }
       }
 
-      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + path.string() + ")";
+      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + pathUtf8Str + ")";
 
       fs::remove(path);
 

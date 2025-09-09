@@ -2,8 +2,9 @@
  * Orthanc - A Lightweight, RESTful DICOM Store
  * Copyright (C) 2012-2016 Sebastien Jodogne, Medical Physics
  * Department, University Hospital of Liege, Belgium
- * Copyright (C) 2017-2022 Osimis S.A., Belgium
- * Copyright (C) 2021-2022 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
+ * Copyright (C) 2017-2023 Osimis S.A., Belgium
+ * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
+ * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -128,7 +129,7 @@ namespace OrthancPlugins
   {
     for (std::list<std::string>::const_iterator it = folders.begin(); it != folders.end(); ++it)
     {
-      folders_.push_back(*it);
+      folders_.push_back(Orthanc::SystemToolbox::PathFromUtf8(*it));
     }
   }
   
@@ -189,7 +190,7 @@ namespace OrthancPlugins
         }
         catch (boost::filesystem::filesystem_error&)
         {
-          LOG(WARNING) << "Indexer cannot read directory: " << d.string();
+          LOG(WARNING) << "Indexer cannot read directory: " << Orthanc::SystemToolbox::PathToUtf8(d);
           continue;
         }
 
@@ -281,7 +282,7 @@ namespace OrthancPlugins
 
     std::string serialized;
 
-    if (kvsIndexedPaths_.GetValue(serialized, path.string()))
+    if (kvsIndexedPaths_.GetValue(serialized, Orthanc::SystemToolbox::PathToUtf8(path)))
     {
       // this is not a new file but it might have been modified
       IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
@@ -290,12 +291,12 @@ namespace OrthancPlugins
       {
         if (indexedPath.IsDicom())
         {
-          LOG(INFO) << "Indexer: a DICOM file has changed and will be re-adopted: " << path.string();
+          LOG(INFO) << "Indexer: a DICOM file has changed and will be re-adopted: " << Orthanc::SystemToolbox::PathToUtf8(path);
           // abandon previous file, we will re-adopt it
-          AbandonFile(path.string());
+          AbandonFile(Orthanc::SystemToolbox::PathToUtf8(path));
         }
 
-        kvsIndexedPaths_.DeleteKey(path.string());
+        kvsIndexedPaths_.DeleteKey(Orthanc::SystemToolbox::PathToUtf8(path));
       }
       else
       {
@@ -308,12 +309,12 @@ namespace OrthancPlugins
     std::string instanceId, attachmentUuid;
     OrthancPluginStoreStatus storeStatus;    
     
-    AdoptFile(instanceId, attachmentUuid, storeStatus, path.string(), takeOwnership_);
+    AdoptFile(instanceId, attachmentUuid, storeStatus, Orthanc::SystemToolbox::PathToUtf8(path), takeOwnership_);
     bool isDicom = storeStatus == OrthancPluginStoreStatus_Success;
 
     if (isDicom)
     {
-      LOG(INFO) << "Indexer: adopted a new DICOM file: " << path.string();
+      LOG(INFO) << "Indexer: adopted a new DICOM file: " << Orthanc::SystemToolbox::PathToUtf8(path);
     }
 
     // and save it to the key value store
@@ -321,7 +322,7 @@ namespace OrthancPlugins
     std::string newIndexedPathSerialized;
     newIndexedPath.ToString(newIndexedPathSerialized);
 
-    kvsIndexedPaths_.Store(path.string(), newIndexedPathSerialized);
+    kvsIndexedPaths_.Store(Orthanc::SystemToolbox::PathToUtf8(path), newIndexedPathSerialized);
   }
 
   void FoldersIndexer::LookupDeletedFiles()

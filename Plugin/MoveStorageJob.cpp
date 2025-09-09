@@ -1,6 +1,5 @@
 /**
  * Cloud storage plugins for Orthanc
- * Copyright (C) 2020-2023 Osimis S.A., Belgium
  * Copyright (C) 2024-2025 Orthanc Team SRL, Belgium
  * Copyright (C) 2021-2025 Sebastien Jodogne, ICTEAM UCLouvain, Belgium
  *
@@ -100,7 +99,7 @@ namespace OrthancPlugins
       // Check if source file exists
       if (!fs::exists(currentPath)) 
       {
-        errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because the file could not be found: " + currentPath.string();
+        errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because the file could not be found: " + Orthanc::SystemToolbox::PathToUtf8(currentPath);
         UpdateContent();
         LOG(ERROR) << errorDetails_;
         return false;
@@ -111,7 +110,7 @@ namespace OrthancPlugins
       {
         if (!fs::is_directory(newPath.parent_path()))
         {
-          errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because the target directory already exists as a file: " + newPath.parent_path().string();
+          errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " because the target directory already exists as a file: " + Orthanc::SystemToolbox::PathToUtf8(newPath.parent_path());
           UpdateContent();
           LOG(ERROR) << errorDetails_;
           return false;
@@ -121,7 +120,7 @@ namespace OrthancPlugins
       {
         if (!fs::create_directories(newPath.parent_path()))
         {
-          errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " unable to create the target directory:: " + newPath.parent_path().string();
+          errorDetails_= std::string("Unable to move attachment ") + currentCustomData.GetUuid() + " unable to create the target directory:: " + Orthanc::SystemToolbox::PathToUtf8(newPath.parent_path());
           UpdateContent();
           LOG(ERROR) << errorDetails_;
           return false;
@@ -139,9 +138,9 @@ namespace OrthancPlugins
     {
       if (e.code() == boost::system::errc::file_exists)
       {
-        if (!Orthanc::SystemToolbox::CompareFilesMD5(currentPath.string(), newPath.string()))
+        if (!Orthanc::SystemToolbox::CompareFilesMD5(currentPath, newPath))
         {
-          errorDetails_= std::string("MoveAttachment: Destination file already exists and is different from current file: ") + newPath.string();
+          errorDetails_= std::string("MoveAttachment: Destination file already exists and is different from current file: ") + Orthanc::SystemToolbox::PathToUtf8(newPath);
           UpdateContent();
           LOG(ERROR) << errorDetails_;
           return false;

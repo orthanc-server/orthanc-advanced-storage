@@ -2,7 +2,7 @@
 ==================
 
 Fix:
-- Added support for Cyrillic and other non ASCII-only path.
+- Added support for Cyrillic and other non ASCII-only path on Windows systems.
 
 
 0.1.1 (2025-06-16)

@@ -1,3 +1,10 @@
+Pending changes
+===============
+
+Fix:
+- Indexed files with `"TakeOwnership": false` could not be read back.
+
+
 0.2.0 (2025-09-09)
 ==================
 

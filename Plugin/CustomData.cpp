@@ -291,12 +291,12 @@ namespace OrthancPlugins
 
     // no need to store the path if we are in the default mode
     // unless it is a file that has been adopted
-    if (!PathGenerator::IsDefaultNamingScheme() || isOwner_)
+    if (!PathGenerator::IsDefaultNamingScheme() || hasBeenAdopted_)
     { 
       v[SERIALIZATION_KEY_PATH] = Orthanc::SystemToolbox::PathToUtf8(path_);
     }
 
-    if (IsMultipleStoragesEnabled() && isOwner_)
+    if (IsMultipleStoragesEnabled() && isOwner_ && !hasBeenAdopted_)
     {
       v[SERIALIZATION_KEY_STORAGE_ID] = storageId_;
     }

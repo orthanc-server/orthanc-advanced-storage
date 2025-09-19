@@ -1,8 +1,8 @@
-Pending changes
-===============
+0.2.1 (2025-09-19)
+==================
 
 Fix:
-- Indexed files with `"TakeOwnership": false` could not be read back.
+- Indexed files with `"TakeOwnership": false` and the default `NamingScheme` could not be read back.
 
 
 0.2.0 (2025-09-09)

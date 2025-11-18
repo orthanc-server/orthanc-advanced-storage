@@ -72,8 +72,8 @@ jobs:
     - name: show gitref / tags
       run: echo ${{ github.ref }} ${{needs.pre-build.outputs.current_branch_tag}} ${{needs.pre-build.outputs.is_tag}}
 
-    - name: install Mercurial on MacOS
-      if: runner.os == 'MacOS'
+    - name: install Mercurial on MacOS and Windows
+      if: runner.os == 'MacOS' || runner.os == 'Windows'
       run: pip3 install mercurial --break-system-packages
 
     - name: Configure CMake
@@ -96,9 +96,9 @@ jobs:
     - name: Setup tmate session
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 60
       with:
         limit-access-to-actor: true
-        timeout-minutes: 20
 
 
   release:

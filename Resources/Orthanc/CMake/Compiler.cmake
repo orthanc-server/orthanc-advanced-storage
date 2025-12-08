@@ -21,6 +21,8 @@
 
 
 # This file sets all the compiler-related flags
+message(STATUS "CMAKE_CXX_COMPILER_ID is ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "CMAKE_SYSTEM_NAME is ${CMAKE_SYSTEM_NAME}")
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
   # Since Orthanc 1.12.7 that allows CMake 4.0, builds for macOS
@@ -245,6 +247,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 
   # fix this error that appears with recent compilers on MacOS: boost/mpl/aux_/integral_wrapper.hpp:73:31: error: integer value -1 is outside the valid range of values [0, 3] for this enumeration type [-Wenum-constexpr-conversion]
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-enum-constexpr-conversion")
+
+  # it seems that some recent MacOS compilers don't set these flags correctly which prevents zlib from building correctly
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64")
 
   add_definitions(
     -D_XOPEN_SOURCE=1

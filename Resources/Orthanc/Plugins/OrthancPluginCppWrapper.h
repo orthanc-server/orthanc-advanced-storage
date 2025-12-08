@@ -28,6 +28,7 @@
 #include <orthanc/OrthancCPlugin.h>
 #include <boost/noncopyable.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/thread/mutex.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <json/value.h>
 #include <vector>
@@ -142,6 +143,12 @@
 #  define HAS_ORTHANC_PLUGIN_QUEUES            0
 #endif
 
+#if ORTHANC_PLUGINS_VERSION_IS_ABOVE(1, 12, 10)
+#  define HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE   1
+#else
+#  define HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE   0
+#endif
+
 
 // Macro to tag a function as having been deprecated
 #if (__cplusplus >= 201402L)  // C++14
@@ -213,10 +220,7 @@ namespace OrthancPlugins
   public:
     MemoryBuffer();
 
-    ~MemoryBuffer()
-    {
-      Clear();
-    }
+    ~MemoryBuffer();
 
     OrthancPluginMemoryBuffer* operator*()
     {
@@ -371,10 +375,7 @@ namespace OrthancPlugins
     {
     }
 
-    ~OrthancString()
-    {
-      Clear();
-    }
+    ~OrthancString();
 
     // This transfers ownership, warning: The string must have been
     // allocated by the Orthanc core
@@ -491,10 +492,7 @@ namespace OrthancPlugins
                  uint32_t                  pitch,
                  void*                     buffer);
 
-    ~OrthancImage()
-    {
-      Clear();
-    }
+    ~OrthancImage();
 
     void UncompressPngImage(const void* data,
                             size_t size);
@@ -879,6 +877,14 @@ namespace OrthancPlugins
                 unsigned int timeout) const;
 
     bool DoPost(MemoryBuffer& target,
+                HttpHeaders& answerHeaders,
+                size_t index,
+                const std::string& uri,
+                const std::string& body,
+                const HttpHeaders& headers,
+                unsigned int timeout) const;
+
+    bool DoPost(MemoryBuffer& target,
                 const std::string& name,
                 const std::string& uri,
                 const std::string& body,
@@ -891,6 +897,14 @@ namespace OrthancPlugins
                 const HttpHeaders& headers) const;
 
     bool DoPost(Json::Value& target,
+                size_t index,
+                const std::string& uri,
+                const std::string& body,
+                const HttpHeaders& headers,
+                unsigned int timeout) const;
+    
+    bool DoPost(Json::Value& target,
+                HttpHeaders& answerHeaders,
                 size_t index,
                 const std::string& uri,
                 const std::string& body,
@@ -930,6 +944,7 @@ namespace OrthancPlugins
   {
   private:
     std::string   jobType_;
+    boost::mutex  contentMutex_;
     std::string   content_;
     bool          hasSerialized_;
     std::string   serialized_;
@@ -1004,7 +1019,7 @@ namespace OrthancPlugins
 
 
 #if HAS_ORTHANC_PLUGIN_METRICS == 1
-  inline void SetMetricsValue(char* name,
+  inline void SetMetricsValue(const char* name,
                               float value)
   {
     OrthancPluginSetMetricsValue(GetGlobalContext(), name,
@@ -1710,6 +1725,10 @@ void GetGetArguments(GetArguments& result, const OrthancPluginHttpRequest* reque
 
     bool DequeueInternal(std::string& value, OrthancPluginQueueOrigin origin);
 
+#if HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE == 1
+    bool ReserveInternal(std::string& value, uint64_t& valueId, OrthancPluginQueueOrigin origin, uint32_t releaseTimeout);
+#endif
+
   public:
     explicit Queue(const std::string& queueId) :
       queueId_(queueId)
@@ -1729,17 +1748,37 @@ void GetGetArguments(GetArguments& result, const OrthancPluginHttpRequest* reque
       Enqueue(value.empty() ? NULL : value.c_str(), value.size());
     }
 
+#if HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE == 1
+    // Use ReserveBack() instead
+    ORTHANC_PLUGIN_DEPRECATED
+#endif
     bool DequeueBack(std::string& value)
     {
       return DequeueInternal(value, OrthancPluginQueueOrigin_Back);
     }
 
+#if HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE == 1
+    // Use ReserveFront() instead
+    ORTHANC_PLUGIN_DEPRECATED
+#endif
     bool DequeueFront(std::string& value)
     {
       return DequeueInternal(value, OrthancPluginQueueOrigin_Front);
     }
 
     uint64_t GetSize();
+
+#if HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE == 1
+    bool ReserveBack(std::string& value, uint64_t& valueId, uint32_t releaseTimeout);
+#endif
+
+#if HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE == 1
+    bool ReserveFront(std::string& value, uint64_t& valueId, uint32_t releaseTimeout);
+#endif
+
+#if HAS_ORTHANC_PLUGIN_RESERVE_QUEUE_VALUE == 1
+    void Acknowledge(uint64_t valueId);
+#endif
   };
 #endif
 }

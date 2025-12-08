@@ -1,7 +1,17 @@
+0.2.3 (2025-12-08)
+==================
+
+Fixes:
+- Fix version number
+
+Internals:
+- updated to latest Orthanc Framework
+
+
 0.2.2 (2025-09-22)
 ==================
 
-Fix:
+Internals:
 - Fix compilation with old compilers.
 
 

@@ -24,21 +24,19 @@ endif(APPLE)
 
 project(AdvancedStorage)
 
-set(PLUGIN_VERSION "mainline" CACHE STRING "plugin version 'mainline' or '0.1.1'")
+set(ORTHANC_PLUGIN_VERSION "mainline" CACHE STRING "plugin version 'mainline' or '0.1.1'")
 
 # This is the list of the versions of the Orthanc SDK against which
 # this plugin will compile
 set(ORTHANC_SDK_COMPATIBLE_VERSIONS "1.12.8")
 
 
-if (PLUGIN_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
-  set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "9eb77f159b9d")  # while waiting for 1.12.10
+if (ORTHANC_PLUGIN_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+  set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "94c7f3784456")  # while waiting for 1.12.11
   set(ORTHANC_FRAMEWORK_DEFAULT_SOURCE "web")
-  set(ORTHANC_PLUGIN_VERSION ${PLUGIN_VERSION})
 else()
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_SOURCE "hg")
-  set(ORTHANC_PLUGIN_VERSION "mainline")
 endif()
 
 
@@ -222,7 +220,7 @@ DefineSourceBasenameForTarget(AdvancedStorage)
 
 message("Setting the version of the library to ${ORTHANC_PLUGIN_VERSION}")
 
-add_definitions(-DADVANCED_STORAGE_VERSION="${ORTHANC_PLUGIN_VERSION}")
+add_definitions(-DORTHANC_PLUGIN_VERSION="${ORTHANC_PLUGIN_VERSION}")
 
 set_target_properties(AdvancedStorage PROPERTIES 
   VERSION ${ORTHANC_PLUGIN_VERSION} 

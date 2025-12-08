@@ -879,6 +879,6 @@ extern "C"
 
   ORTHANC_PLUGINS_API const char* OrthancPluginGetVersion()
   {
-    return ADVANCED_STORAGE_VERSION;
+    return ORTHANC_PLUGIN_VERSION;
   }
 }

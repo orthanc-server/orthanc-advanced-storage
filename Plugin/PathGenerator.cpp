@@ -261,6 +261,7 @@ namespace OrthancPlugins
 				ReplaceTagKeyword(folderName, "{SeriesDate}", tags, "NO_SERIES_DATE");
 				ReplaceTagKeyword(folderName, "{SeriesDescription}", tags, "NO_SERIES_DESCRIPTION");
 				ReplaceTagKeyword(folderName, "{SOPInstanceUID}", tags, "NO_SOP_INSTANCE_UID");
+				ReplaceTagKeyword(folderName, "{InstitutionName}", tags, "NO_INSTITUTION_NAME");
 				ReplaceIntTagKeyword(folderName, "{SeriesNumber}", tags, "NO_SERIES_NUMBER", 0);
 				ReplaceIntTagKeyword(folderName, "{InstanceNumber}", tags, "NO_INSTANCE_NUMBER", 0);
 				ReplaceIntTagKeyword(folderName, "{pad4(SeriesNumber)}", tags, "NO_SERIES_NUMBER", 4, "SeriesNumber");

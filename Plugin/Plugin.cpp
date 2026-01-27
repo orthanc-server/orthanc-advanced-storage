@@ -22,6 +22,12 @@
 
 #define ORTHANC_PLUGIN_NAME "advanced-storage"
 
+#if __cplusplus >= 201103L
+#  define ORTHANC_NOEXCEPT noexcept
+#else
+#  define ORTHANC_NOEXCEPT
+#endif
+
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <Compatibility.h>
@@ -109,7 +115,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      uint64_t size,
                                      OrthancPluginContentType type,
                                      OrthancPluginCompressionType compressionType,
-                                     const OrthancPluginDicomInstance* dicomInstance) noexcept
+                                     const OrthancPluginDicomInstance* dicomInstance) ORTHANC_NOEXCEPT
 {
   try
   {
@@ -183,7 +189,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         OrthancPluginContentType type,
                                         uint64_t rangeStart,
                                         const void* customData,
-                                        uint32_t customDataSize) noexcept
+                                        uint32_t customDataSize) ORTHANC_NOEXCEPT
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
@@ -226,7 +232,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
 OrthancPluginErrorCode StorageRemove(const char* uuid,
                                      OrthancPluginContentType type,
                                      const void* customData,
-                                     uint32_t customDataSize) noexcept
+                                     uint32_t customDataSize) ORTHANC_NOEXCEPT
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
@@ -296,20 +302,20 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
 extern "C" {
   OrthancPluginErrorCode PostAbandonInstance(OrthancPluginRestOutput* output,
                                              const char* url,
-                                             const OrthancPluginHttpRequest* request) noexcept;
+                                             const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT;
 
   OrthancPluginErrorCode PostAdoptInstance(OrthancPluginRestOutput* output,
                                            const char* url,
-                                           const OrthancPluginHttpRequest* request) noexcept;
+                                           const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT;
 
   OrthancPluginErrorCode PostMoveStorage(OrthancPluginRestOutput* output,
                                          const char* /*url*/,
-                                         const OrthancPluginHttpRequest* request) noexcept;
+                                         const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT;
 }
 
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType, 
                                                OrthancPluginResourceType resourceType,
-                                               const char *resourceId) noexcept
+                                               const char *resourceId) ORTHANC_NOEXCEPT
 {
   try
   {
@@ -429,7 +435,7 @@ extern "C"
 
   OrthancPluginErrorCode PostAdoptInstance(OrthancPluginRestOutput* output,
                                            const char* url,
-                                           const OrthancPluginHttpRequest* request) noexcept
+                                           const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT
   {
     try
     {
@@ -501,7 +507,7 @@ extern "C"
 
   OrthancPluginErrorCode PostAbandonInstance(OrthancPluginRestOutput* output,
                                              const char* url,
-                                             const OrthancPluginHttpRequest* request) noexcept
+                                             const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT
   {
     try
     {
@@ -539,7 +545,7 @@ extern "C"
 
   OrthancPluginErrorCode PostMoveStorage(OrthancPluginRestOutput* output,
                                          const char* /*url*/,
-                                         const OrthancPluginHttpRequest* request) noexcept
+                                         const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT
   {
     try
     {
@@ -659,7 +665,7 @@ extern "C"
 
   void GetPluginStatus(OrthancPluginRestOutput* output,
                        const char* url,
-                       const OrthancPluginHttpRequest* request) noexcept
+                       const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT
   {
     Json::Value status;
     
@@ -681,7 +687,7 @@ extern "C"
 
   void GetAttachmentInfo(OrthancPluginRestOutput* output,
                          const char* url,
-                         const OrthancPluginHttpRequest* request) noexcept
+                         const OrthancPluginHttpRequest* request) ORTHANC_NOEXCEPT
   {
     if (request->method != OrthancPluginHttpMethod_Get)
     {
@@ -719,7 +725,7 @@ extern "C"
     }
   }
 
-  ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context) noexcept
+  ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context) ORTHANC_NOEXCEPT
   {
     OrthancPlugins::SetGlobalContext(context, ORTHANC_PLUGIN_NAME);
     Orthanc::Logging::InitializePluginContext(context, ORTHANC_PLUGIN_NAME);

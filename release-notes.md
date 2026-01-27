@@ -3,6 +3,7 @@ Pending changes
 
 Fixes:
 - Fix #3: Added support for `InstitutionName` in the `NamingScheme`
+- Fix handling of exceptions in callbacks
 
 
 0.2.3 (2025-12-08)

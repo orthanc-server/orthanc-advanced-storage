@@ -109,7 +109,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      uint64_t size,
                                      OrthancPluginContentType type,
                                      OrthancPluginCompressionType compressionType,
-                                     const OrthancPluginDicomInstance* dicomInstance)
+                                     const OrthancPluginDicomInstance* dicomInstance) noexcept
 {
   try
   {
@@ -183,7 +183,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         OrthancPluginContentType type,
                                         uint64_t rangeStart,
                                         const void* customData,
-                                        uint32_t customDataSize)
+                                        uint32_t customDataSize) noexcept
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
@@ -226,7 +226,7 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
 OrthancPluginErrorCode StorageRemove(const char* uuid,
                                      OrthancPluginContentType type,
                                      const void* customData,
-                                     uint32_t customDataSize)
+                                     uint32_t customDataSize) noexcept
 {
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
@@ -296,20 +296,20 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
 extern "C" {
   OrthancPluginErrorCode PostAbandonInstance(OrthancPluginRestOutput* output,
                                              const char* url,
-                                             const OrthancPluginHttpRequest* request);
+                                             const OrthancPluginHttpRequest* request) noexcept;
 
   OrthancPluginErrorCode PostAdoptInstance(OrthancPluginRestOutput* output,
                                            const char* url,
-                                           const OrthancPluginHttpRequest* request);
+                                           const OrthancPluginHttpRequest* request) noexcept;
 
   OrthancPluginErrorCode PostMoveStorage(OrthancPluginRestOutput* output,
                                          const char* /*url*/,
-                                         const OrthancPluginHttpRequest* request);
+                                         const OrthancPluginHttpRequest* request) noexcept;
 }
 
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType, 
-                                              OrthancPluginResourceType resourceType, 
-                                              const char *resourceId)
+                                               OrthancPluginResourceType resourceType,
+                                               const char *resourceId) noexcept
 {
   try
   {
@@ -323,8 +323,8 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
 
           hasKeyValueStoresSupport_ = system.isMember(SYSTEM_CAPABILITIES) 
-                              && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE)
-                              && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE].asBool();
+            && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE)
+            && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_KEY_VALUE_STORE].asBool();
           
           if (hasKeyValueStoresSupport_)
           {
@@ -346,8 +346,8 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
           }
 
           hasQueuesSupport_ = system.isMember(SYSTEM_CAPABILITIES) 
-                              && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_QUEUES)
-                              && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_QUEUES].asBool();
+            && system[SYSTEM_CAPABILITIES].isMember(SYSTEM_CAPABILITIES_HAS_QUEUES)
+            && system[SYSTEM_CAPABILITIES][SYSTEM_CAPABILITIES_HAS_QUEUES].asBool();
           
           if (hasQueuesSupport_)
           {
@@ -429,213 +429,237 @@ extern "C"
 
   OrthancPluginErrorCode PostAdoptInstance(OrthancPluginRestOutput* output,
                                            const char* url,
-                                           const OrthancPluginHttpRequest* request)
+                                           const OrthancPluginHttpRequest* request) noexcept
   {
-    if (request->method != OrthancPluginHttpMethod_Post)
+    try
     {
-      OrthancPlugins::AnswerMethodNotAllowed(output, "POST");
-    }
-    else
-    {
-      Json::Value body;
-
-      if (!OrthancPlugins::ReadJson(body, request->body, request->bodySize))
+      if (request->method != OrthancPluginHttpMethod_Post)
       {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
-      }
-
-      if (!body.isMember("Path") || !body["Path"].isString())
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
-      }
-      
-      bool takeOwnership = body.isMember("TakeOwnership") && body["TakeOwnership"].asBool();  // false by default 
-
-      std::string instanceId, attachmentUuid;
-      OrthancPluginStoreStatus storeStatus;
-
-      AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), takeOwnership);
-
-      Json::Value response;
-
-      if (storeStatus == OrthancPluginStoreStatus_Success)
-      {
-        response["InstanceId"] = instanceId;
-        response["AttachmentUuid"] = attachmentUuid;
-        response["Status"] = "Success";
-      }
-      else if (storeStatus == OrthancPluginStoreStatus_AlreadyStored)
-      {
-        response["Status"] = "AlreadyStored";
-      }
-      else if (storeStatus == OrthancPluginStoreStatus_Failure)
-      {
-        response["Status"] = "Failure";
-      }
-      else if (storeStatus == OrthancPluginStoreStatus_FilteredOut)
-      {
-        response["Status"] = "FilteredOut";
-      }
-      else if (storeStatus == OrthancPluginStoreStatus_StorageFull)
-      {
-        response["Status"] = "StorageFull";
+        OrthancPlugins::AnswerMethodNotAllowed(output, "POST");
       }
       else
       {
-        response["Status"] = "Unknown";
+        Json::Value body;
+
+        if (!OrthancPlugins::ReadJson(body, request->body, request->bodySize))
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
+        }
+
+        if (!body.isMember("Path") || !body["Path"].isString())
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
+        }
+
+        bool takeOwnership = body.isMember("TakeOwnership") && body["TakeOwnership"].asBool();  // false by default
+
+        std::string instanceId, attachmentUuid;
+        OrthancPluginStoreStatus storeStatus;
+
+        AdoptFile(instanceId, attachmentUuid, storeStatus, body["Path"].asString(), takeOwnership);
+
+        Json::Value response;
+
+        if (storeStatus == OrthancPluginStoreStatus_Success)
+        {
+          response["InstanceId"] = instanceId;
+          response["AttachmentUuid"] = attachmentUuid;
+          response["Status"] = "Success";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_AlreadyStored)
+        {
+          response["Status"] = "AlreadyStored";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_Failure)
+        {
+          response["Status"] = "Failure";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_FilteredOut)
+        {
+          response["Status"] = "FilteredOut";
+        }
+        else if (storeStatus == OrthancPluginStoreStatus_StorageFull)
+        {
+          response["Status"] = "StorageFull";
+        }
+        else
+        {
+          response["Status"] = "Unknown";
+        }
+
+        OrthancPlugins::AnswerJson(response, output);
       }
 
-      OrthancPlugins::AnswerJson(response, output);
+      return OrthancPluginErrorCode_Success;
     }
-
-    return OrthancPluginErrorCode_Success;
+    catch (Orthanc::OrthancException& e)
+    {
+      LOG(ERROR) << "Exception: " << e.What();
+      return static_cast<OrthancPluginErrorCode>(e.GetErrorCode());
+    }
   }
 
   OrthancPluginErrorCode PostAbandonInstance(OrthancPluginRestOutput* output,
                                              const char* url,
-                                             const OrthancPluginHttpRequest* request)
+                                             const OrthancPluginHttpRequest* request) noexcept
   {
-    if (request->method != OrthancPluginHttpMethod_Post)
+    try
     {
-      OrthancPlugins::AnswerMethodNotAllowed(output, "POST");
-    }
-    else
-    {
-      Json::Value body;
-
-      if (!OrthancPlugins::ReadJson(body, request->body, request->bodySize))
+      if (request->method != OrthancPluginHttpMethod_Post)
       {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
+        OrthancPlugins::AnswerMethodNotAllowed(output, "POST");
+      }
+      else
+      {
+        Json::Value body;
+
+        if (!OrthancPlugins::ReadJson(body, request->body, request->bodySize))
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
+        }
+
+        if (!body.isMember("Path") || !body["Path"].isString())
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
+        }
+
+        AbandonFile(body["Path"].asString());
+
+        OrthancPlugins::AnswerHttpError(200, output);
       }
 
-      if (!body.isMember("Path") || !body["Path"].isString())
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "'Path' field is missing or not a string");
-      }
-      
-      AbandonFile(body["Path"].asString());
-
-      OrthancPlugins::AnswerHttpError(200, output);
+      return OrthancPluginErrorCode_Success;
     }
-
-    return OrthancPluginErrorCode_Success;
+    catch (Orthanc::OrthancException& e)
+    {
+      LOG(ERROR) << "Exception: " << e.What();
+      return static_cast<OrthancPluginErrorCode>(e.GetErrorCode());
+    }
   }
 
   OrthancPluginErrorCode PostMoveStorage(OrthancPluginRestOutput* output,
                                          const char* /*url*/,
-                                         const OrthancPluginHttpRequest* request)
+                                         const OrthancPluginHttpRequest* request) noexcept
   {
-    OrthancPluginContext* context = OrthancPlugins::GetGlobalContext();
-
-    if (request->method != OrthancPluginHttpMethod_Post)
-    {
-      OrthancPluginSendMethodNotAllowed(context, output, "POST");
-      return OrthancPluginErrorCode_Success;
-    }
-
-    Json::Value requestPayload;
-
-    if (!OrthancPlugins::ReadJson(requestPayload, request->body, request->bodySize))
-    {
-      throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
-    }
-
-    std::vector<std::string> instances;
-    Json::Value resourcesForJobContent;
-
-    if (requestPayload.type() != Json::objectValue ||
-        !requestPayload.isMember(KEY_RESOURCES) ||
-        requestPayload[KEY_RESOURCES].type() != Json::arrayValue)
-    {
-      throw Orthanc::OrthancException(
-        Orthanc::ErrorCode_BadFileFormat,
-        "A request to the move-storage endpoint must provide a JSON object "
-        "with the field \"" + std::string(KEY_RESOURCES) + 
-        "\" containing an array of resources to be sent");
-    }
-
-    if (!requestPayload.isMember(KEY_TARGET_STORAGE_ID)
-        || requestPayload[KEY_TARGET_STORAGE_ID].type() != Json::stringValue
-        || !CustomData::HasStorage(requestPayload[KEY_TARGET_STORAGE_ID].asString()))
-    {
-      throw Orthanc::OrthancException(
-        Orthanc::ErrorCode_BadFileFormat,
-        "A request to the move-storage endpoint must provide a JSON object "
-        "with the field \"" + std::string(KEY_TARGET_STORAGE_ID) + 
-        "\" set to one of the storage ids");
-    }
-
-    const std::string& targetStorage = requestPayload[KEY_TARGET_STORAGE_ID].asString();
-    const Json::Value& resources = requestPayload[KEY_RESOURCES];
-
-    // Extract information about all the child instances
-    for (Json::Value::ArrayIndex i = 0; i < resources.size(); i++)
-    {
-      if (resources[i].type() != Json::stringValue)
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat);
-      }
-
-      std::string resource = resources[i].asString();
-      if (resource.empty())
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource);
-      }
-
-      // Test whether this resource is an instance
-      Json::Value tmpResource;
-      Json::Value tmpInstances;
-      if (OrthancPlugins::RestApiGet(tmpResource, "/instances/" + resource, false))
-      {
-        instances.push_back(resource);
-        AddResourceForJobContent(resourcesForJobContent, Orthanc::ResourceType_Instance, resource);
-      }
-      // This was not an instance, successively try with series/studies/patients
-      else if ((OrthancPlugins::RestApiGet(tmpResource, "/series/" + resource, false) &&
-                OrthancPlugins::RestApiGet(tmpInstances, "/series/" + resource + "/instances?expand=false", false)) ||
-              (OrthancPlugins::RestApiGet(tmpResource, "/studies/" + resource, false) &&
-                OrthancPlugins::RestApiGet(tmpInstances, "/studies/" + resource + "/instances?expand=false", false)) ||
-              (OrthancPlugins::RestApiGet(tmpResource, "/patients/" + resource, false) &&
-                OrthancPlugins::RestApiGet(tmpInstances, "/patients/" + resource + "/instances?expand=false", false)))
-      {
-        if (tmpInstances.type() != Json::arrayValue)
-        {
-          throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError);
-        }
-
-        AddResourceForJobContent(resourcesForJobContent, Orthanc::StringToResourceType(tmpResource["Type"].asString().c_str()), resource);
-
-        for (Json::Value::ArrayIndex j = 0; j < tmpInstances.size(); j++)
-        {
-          instances.push_back(tmpInstances[j].asString());
-        }
-      }
-      else
-      {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource);
-      }   
-    }
-
-    LOG(INFO) << "Moving " << instances.size() << " instances to storageId " << targetStorage;
-
-    std::unique_ptr<MoveStorageJob> job(CreateMoveStorageJob(targetStorage, instances, resourcesForJobContent));
-
     try
     {
-      OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestPayload, job.release());
+      OrthancPluginContext* context = OrthancPlugins::GetGlobalContext();
+
+      if (request->method != OrthancPluginHttpMethod_Post)
+      {
+        OrthancPluginSendMethodNotAllowed(context, output, "POST");
+        return OrthancPluginErrorCode_Success;
+      }
+
+      Json::Value requestPayload;
+
+      if (!OrthancPlugins::ReadJson(requestPayload, request->body, request->bodySize))
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "A JSON payload was expected");
+      }
+
+      std::vector<std::string> instances;
+      Json::Value resourcesForJobContent;
+
+      if (requestPayload.type() != Json::objectValue ||
+          !requestPayload.isMember(KEY_RESOURCES) ||
+          requestPayload[KEY_RESOURCES].type() != Json::arrayValue)
+      {
+        throw Orthanc::OrthancException(
+          Orthanc::ErrorCode_BadFileFormat,
+          "A request to the move-storage endpoint must provide a JSON object "
+          "with the field \"" + std::string(KEY_RESOURCES) +
+          "\" containing an array of resources to be sent");
+      }
+
+      if (!requestPayload.isMember(KEY_TARGET_STORAGE_ID)
+          || requestPayload[KEY_TARGET_STORAGE_ID].type() != Json::stringValue
+          || !CustomData::HasStorage(requestPayload[KEY_TARGET_STORAGE_ID].asString()))
+      {
+        throw Orthanc::OrthancException(
+          Orthanc::ErrorCode_BadFileFormat,
+          "A request to the move-storage endpoint must provide a JSON object "
+          "with the field \"" + std::string(KEY_TARGET_STORAGE_ID) +
+          "\" set to one of the storage ids");
+      }
+
+      const std::string& targetStorage = requestPayload[KEY_TARGET_STORAGE_ID].asString();
+      const Json::Value& resources = requestPayload[KEY_RESOURCES];
+
+      // Extract information about all the child instances
+      for (Json::Value::ArrayIndex i = 0; i < resources.size(); i++)
+      {
+        if (resources[i].type() != Json::stringValue)
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat);
+        }
+
+        std::string resource = resources[i].asString();
+        if (resource.empty())
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource);
+        }
+
+        // Test whether this resource is an instance
+        Json::Value tmpResource;
+        Json::Value tmpInstances;
+        if (OrthancPlugins::RestApiGet(tmpResource, "/instances/" + resource, false))
+        {
+          instances.push_back(resource);
+          AddResourceForJobContent(resourcesForJobContent, Orthanc::ResourceType_Instance, resource);
+        }
+        // This was not an instance, successively try with series/studies/patients
+        else if ((OrthancPlugins::RestApiGet(tmpResource, "/series/" + resource, false) &&
+                  OrthancPlugins::RestApiGet(tmpInstances, "/series/" + resource + "/instances?expand=false", false)) ||
+                 (OrthancPlugins::RestApiGet(tmpResource, "/studies/" + resource, false) &&
+                  OrthancPlugins::RestApiGet(tmpInstances, "/studies/" + resource + "/instances?expand=false", false)) ||
+                 (OrthancPlugins::RestApiGet(tmpResource, "/patients/" + resource, false) &&
+                  OrthancPlugins::RestApiGet(tmpInstances, "/patients/" + resource + "/instances?expand=false", false)))
+        {
+          if (tmpInstances.type() != Json::arrayValue)
+          {
+            throw Orthanc::OrthancException(Orthanc::ErrorCode_InternalError);
+          }
+
+          AddResourceForJobContent(resourcesForJobContent, Orthanc::StringToResourceType(tmpResource["Type"].asString().c_str()), resource);
+
+          for (Json::Value::ArrayIndex j = 0; j < tmpInstances.size(); j++)
+          {
+            instances.push_back(tmpInstances[j].asString());
+          }
+        }
+        else
+        {
+          throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource);
+        }
+      }
+
+      LOG(INFO) << "Moving " << instances.size() << " instances to storageId " << targetStorage;
+
+      std::unique_ptr<MoveStorageJob> job(CreateMoveStorageJob(targetStorage, instances, resourcesForJobContent));
+
+      try
+      {
+        OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestPayload, job.release());
+      }
+      catch (Orthanc::OrthancException ex)
+      {
+        LOG(ERROR) << "Failed to move instances: " << ex.What();
+        // ANSWER buffer
+        OrthancPlugins::AnswerHttpError(400, output);
+      }
+      return OrthancPluginErrorCode_Success;
     }
-    catch (Orthanc::OrthancException ex)
+    catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "Failed to move instances: " << ex.What();
-      // ANSWER buffer
-      OrthancPlugins::AnswerHttpError(400, output);
+      LOG(ERROR) << "Exception: " << e.What();
+      return static_cast<OrthancPluginErrorCode>(e.GetErrorCode());
     }
-    return OrthancPluginErrorCode_Success;
   }
 
   void GetPluginStatus(OrthancPluginRestOutput* output,
-                  const char* url,
-                  const OrthancPluginHttpRequest* request)
+                       const char* url,
+                       const OrthancPluginHttpRequest* request) noexcept
   {
     Json::Value status;
     
@@ -657,7 +681,7 @@ extern "C"
 
   void GetAttachmentInfo(OrthancPluginRestOutput* output,
                          const char* url,
-                         const OrthancPluginHttpRequest* request)
+                         const OrthancPluginHttpRequest* request) noexcept
   {
     if (request->method != OrthancPluginHttpMethod_Get)
     {
@@ -695,7 +719,7 @@ extern "C"
     }
   }
 
-  ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context)
+  ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context) noexcept
   {
     OrthancPlugins::SetGlobalContext(context, ORTHANC_PLUGIN_NAME);
     Orthanc::Logging::InitializePluginContext(context, ORTHANC_PLUGIN_NAME);
@@ -720,141 +744,149 @@ extern "C"
     bool enabled = advancedStorageConfiguration.GetBooleanValue(CONFIG_ENABLE, false);
     if (enabled)
     {
-      fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
-      overwriteInstances_ = orthancConfiguration.GetBooleanValue(CONFIG_OVERWRITE_INSTANCES, false);
-
-      const Json::Value& pluginJson = advancedStorageConfiguration.GetJson();
-
       try
       {
-        PathGenerator::SetNamingScheme(advancedStorageConfiguration.GetStringValue(CONFIG_NAMING_SCHEME, "OrthancDefault"), overwriteInstances_);
+        fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
+        overwriteInstances_ = orthancConfiguration.GetBooleanValue(CONFIG_OVERWRITE_INSTANCES, false);
+
+        const Json::Value& pluginJson = advancedStorageConfiguration.GetJson();
+
+        try
+        {
+          PathGenerator::SetNamingScheme(advancedStorageConfiguration.GetStringValue(CONFIG_NAMING_SCHEME, "OrthancDefault"), overwriteInstances_);
+        }
+        catch (Orthanc::OrthancException& ex)
+        {
+          return -1;
+        }
+
+        std::string otherAttachmentsPrefix = advancedStorageConfiguration.GetStringValue(CONFIG_OTHER_ATTACHMENTS_PREFIX, "");
+        LOG(WARNING) << "Prefix path to the other attachments root: " << otherAttachmentsPrefix;
+        CustomData::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
+        PathGenerator::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
+      
+        // if we have enabled multiple storage after files have been saved without this plugin, we still need the default StorageDirectory
+        CustomData::SetOrthancCoreRootPath(orthancConfiguration.GetStringValue(CONFIG_STORAGE_DIRECTORY, "OrthancStorage"));
+        LOG(WARNING) << "Path to the default storage area: " << CustomData::GetOrthancCoreRootPath();
+
+        size_t maxPathLength = advancedStorageConfiguration.GetIntegerValue(CONFIG_MAX_PATH_LENGTH, 256);
+        LOG(WARNING) << "Maximum path length: " << maxPathLength;
+        CustomData::SetMaxPathLength(maxPathLength);
+
+        if (pluginJson.isMember(CONFIG_MULTIPLE_STORAGES))
+        {
+          // multipleStoragesEnabled_ = true;
+          const Json::Value& multipleStoragesJson = pluginJson[CONFIG_MULTIPLE_STORAGES];
+
+          if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_STORAGES) && multipleStoragesJson.isObject())
+          {
+            const Json::Value& storagesJson = multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_STORAGES];
+            Json::Value::Members storageIds = storagesJson.getMemberNames();
+
+            for (Json::Value::Members::const_iterator it = storageIds.begin(); it != storageIds.end(); ++it)
+            {
+              if (!storagesJson[*it].isString())
+              {
+                LOG(ERROR) << "Storage path is not a string " << *it;
+                return -1;
+              }
+              fs::path storagePath = storagesJson[*it].asString();
+
+              CustomData::SetStorageRootPath(*it, storagesJson[*it].asString());
+            }
+
+            if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE) && multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].isString())
+            {
+              try
+              {
+                CustomData::SetCurrentWriteStorageId(multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString());
+              }
+              catch (Orthanc::OrthancException& ex)
+              {
+                return -1;
+              }
+            }
+
+            LOG(WARNING) << "multiple storages enabled.  Current Write storage : " << multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString();
+
+            OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/move-storage", PostMoveStorage);
+          }
+        }
+
+        if (advancedStorageConfiguration.IsSection(CONFIG_INDEXER))
+        {
+          OrthancPlugins::OrthancConfiguration indexerConfig;
+          advancedStorageConfiguration.GetSection(indexerConfig, CONFIG_INDEXER);
+
+          if (indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE, false))
+          {
+
+            std::list<std::string> indexedFolders, parsedExtensions, skippedExtensions;
+
+            unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
+            unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+            bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
+
+            if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
+                indexedFolders.empty())
+            {
+              throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
+                                              "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
+            }
+
+            indexerConfig.LookupListOfStrings(parsedExtensions, CONFIG_INDEXER_PARSED_EXTENSIONS, true);
+            indexerConfig.LookupListOfStrings(skippedExtensions, CONFIG_INDEXER_SKIPPED_EXTENSIONS, true);
+
+            if (parsedExtensions.size() > 0 && skippedExtensions.size() > 0)
+            {
+              throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
+                                              std::string("You can not configure \"") + CONFIG_INDEXER_PARSED_EXTENSIONS + "\" and \"" + CONFIG_INDEXER_SKIPPED_EXTENSIONS + "\" at the same time");
+            }
+
+
+            LOG(WARNING) << "creating FoldersIndexer";
+    
+            boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+            foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership));
+          }
+          else
+          {
+            LOG(WARNING) << "FoldersIndexer is currently DISABLED";
+          }
+        }
+
+        if (advancedStorageConfiguration.IsSection(CONFIG_DELAYED_DELETION))
+        {
+          OrthancPlugins::OrthancConfiguration delayedDeletionConfig;
+          advancedStorageConfiguration.GetSection(delayedDeletionConfig, CONFIG_DELAYED_DELETION);
+
+          if (delayedDeletionConfig.GetBooleanValue(CONFIG_DELAYED_DELETION_ENABLE, false))
+          {
+            unsigned int throttleDelayMs = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+
+            LOG(WARNING) << "creating DelayedDeleter";
+    
+            boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+            delayedFilesDeleter_.reset(new DelayedFilesDeleter(throttleDelayMs));
+          }
+          else
+          {
+            LOG(WARNING) << "DelayedDeletion is currently DISABLED";
+          }
+        }
+
+        OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);
+
+        OrthancPlugins::RegisterRestCallback<GetAttachmentInfo>("/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", true);
+        OrthancPlugins::RegisterRestCallback<GetPluginStatus>(std::string("/plugins/") + ORTHANC_PLUGIN_NAME + "/status", true);
+
+        OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
       }
-      catch (Orthanc::OrthancException& ex)
+      catch (Orthanc::OrthancException& e)
       {
+        LOG(ERROR) << "Exception: " << e.What();
         return -1;
       }
-
-      std::string otherAttachmentsPrefix = advancedStorageConfiguration.GetStringValue(CONFIG_OTHER_ATTACHMENTS_PREFIX, "");
-      LOG(WARNING) << "Prefix path to the other attachments root: " << otherAttachmentsPrefix;
-      CustomData::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
-      PathGenerator::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
-      
-      // if we have enabled multiple storage after files have been saved without this plugin, we still need the default StorageDirectory
-      CustomData::SetOrthancCoreRootPath(orthancConfiguration.GetStringValue(CONFIG_STORAGE_DIRECTORY, "OrthancStorage"));
-      LOG(WARNING) << "Path to the default storage area: " << CustomData::GetOrthancCoreRootPath();
-
-      size_t maxPathLength = advancedStorageConfiguration.GetIntegerValue(CONFIG_MAX_PATH_LENGTH, 256);
-      LOG(WARNING) << "Maximum path length: " << maxPathLength;
-      CustomData::SetMaxPathLength(maxPathLength);
-
-      if (pluginJson.isMember(CONFIG_MULTIPLE_STORAGES))
-      {
-        // multipleStoragesEnabled_ = true;
-        const Json::Value& multipleStoragesJson = pluginJson[CONFIG_MULTIPLE_STORAGES];
-        
-        if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_STORAGES) && multipleStoragesJson.isObject())
-        {
-          const Json::Value& storagesJson = multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_STORAGES];
-          Json::Value::Members storageIds = storagesJson.getMemberNames();
-    
-          for (Json::Value::Members::const_iterator it = storageIds.begin(); it != storageIds.end(); ++it)
-          {
-            if (!storagesJson[*it].isString())
-            {
-              LOG(ERROR) << "Storage path is not a string " << *it;
-              return -1;
-            }
-            fs::path storagePath = storagesJson[*it].asString();
-
-            CustomData::SetStorageRootPath(*it, storagesJson[*it].asString());
-          }
-
-          if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE) && multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].isString())
-          {
-            try
-            {
-              CustomData::SetCurrentWriteStorageId(multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString());
-            }
-            catch (Orthanc::OrthancException& ex)
-            {
-              return -1;
-            }
-          }
-
-          LOG(WARNING) << "multiple storages enabled.  Current Write storage : " << multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString();
-
-          OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/move-storage", PostMoveStorage);
-        }
-      }
-
-      if (advancedStorageConfiguration.IsSection(CONFIG_INDEXER))
-      {
-        OrthancPlugins::OrthancConfiguration indexerConfig;
-        advancedStorageConfiguration.GetSection(indexerConfig, CONFIG_INDEXER);
-
-        if (indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE, false))
-        {
-
-          std::list<std::string> indexedFolders, parsedExtensions, skippedExtensions;
-
-          unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
-          unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-          bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
-
-          if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
-              indexedFolders.empty())
-          {
-            throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
-                                            "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
-          }
-
-          indexerConfig.LookupListOfStrings(parsedExtensions, CONFIG_INDEXER_PARSED_EXTENSIONS, true);
-          indexerConfig.LookupListOfStrings(skippedExtensions, CONFIG_INDEXER_SKIPPED_EXTENSIONS, true);
-
-          if (parsedExtensions.size() > 0 && skippedExtensions.size() > 0)
-          {
-            throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
-                                            std::string("You can not configure \"") + CONFIG_INDEXER_PARSED_EXTENSIONS + "\" and \"" + CONFIG_INDEXER_SKIPPED_EXTENSIONS + "\" at the same time");
-          }
-
-
-          LOG(WARNING) << "creating FoldersIndexer";
-    
-          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership));
-        }
-        else
-        {
-          LOG(WARNING) << "FoldersIndexer is currently DISABLED";
-        }
-      }
-
-      if (advancedStorageConfiguration.IsSection(CONFIG_DELAYED_DELETION))
-      {
-        OrthancPlugins::OrthancConfiguration delayedDeletionConfig;
-        advancedStorageConfiguration.GetSection(delayedDeletionConfig, CONFIG_DELAYED_DELETION);
-
-        if (delayedDeletionConfig.GetBooleanValue(CONFIG_DELAYED_DELETION_ENABLE, false))
-        {
-          unsigned int throttleDelayMs = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-
-          LOG(WARNING) << "creating DelayedDeleter";
-    
-          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          delayedFilesDeleter_.reset(new DelayedFilesDeleter(throttleDelayMs));
-        }
-        else
-        {
-          LOG(WARNING) << "DelayedDeletion is currently DISABLED";
-        }
-      }
-
-      OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);
-
-      OrthancPlugins::RegisterRestCallback<GetAttachmentInfo>("/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", true);
-      OrthancPlugins::RegisterRestCallback<GetPluginStatus>(std::string("/plugins/") + ORTHANC_PLUGIN_NAME + "/status", true);
-
-      OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
     }
     else
     {

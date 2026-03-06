@@ -110,6 +110,8 @@ if (STATIC_BUILD OR NOT USE_SYSTEM_ORTHANC_SDK)
 
   if (ORTHANC_SDK_VERSION STREQUAL "1.12.8")
     set(ORTHANC_SDK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Orthanc/Sdk-1.12.8)
+  elseif (ORTHANC_SDK_VERSION STREQUAL "1.12.10")
+    set(ORTHANC_SDK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Orthanc/Sdk-1.12.10)
   elseif (ORTHANC_SDK_VERSION STREQUAL "framework")
     set(tmp ${ORTHANC_FRAMEWORK_ROOT}/../../OrthancServer/Plugins/Include/)
     message(${tmp})

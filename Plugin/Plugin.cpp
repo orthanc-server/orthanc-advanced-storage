@@ -830,9 +830,10 @@ extern "C"
 
             std::list<std::string> indexedFolders, parsedExtensions, skippedExtensions;
 
-            unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
-            unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-            bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
+          unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
+          unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
+          bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
+          bool enableVerboseLogs = indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE_VERBOSE_LOGS, false);
 
             if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
                 indexedFolders.empty())
@@ -853,14 +854,14 @@ extern "C"
 
             LOG(WARNING) << "creating FoldersIndexer";
     
-            boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-            foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership));
-          }
-          else
-          {
-            LOG(WARNING) << "FoldersIndexer is currently DISABLED";
-          }
+          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
+          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership, enableVerboseLogs));
         }
+        else
+        {
+          LOG(WARNING) << "FoldersIndexer is currently DISABLED";
+        }
+      }
 
         if (advancedStorageConfiguration.IsSection(CONFIG_DELAYED_DELETION))
         {
@@ -894,132 +895,6 @@ extern "C"
         LOG(ERROR) << "Exception: " << e.What();
         return -1;
       }
-<<<<<<< HEAD
-
-      std::string otherAttachmentsPrefix = advancedStorageConfiguration.GetStringValue(CONFIG_OTHER_ATTACHMENTS_PREFIX, "");
-      LOG(WARNING) << "Prefix path to the other attachments root: " << otherAttachmentsPrefix;
-      CustomData::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
-      PathGenerator::SetOtherAttachmentsPrefix(otherAttachmentsPrefix);
-      
-      // if we have enabled multiple storage after files have been saved without this plugin, we still need the default StorageDirectory
-      CustomData::SetOrthancCoreRootPath(orthancConfiguration.GetStringValue(CONFIG_STORAGE_DIRECTORY, "OrthancStorage"));
-      LOG(WARNING) << "Path to the default storage area: " << CustomData::GetOrthancCoreRootPath();
-
-      size_t maxPathLength = advancedStorageConfiguration.GetIntegerValue(CONFIG_MAX_PATH_LENGTH, 256);
-      LOG(WARNING) << "Maximum path length: " << maxPathLength;
-      CustomData::SetMaxPathLength(maxPathLength);
-
-      if (pluginJson.isMember(CONFIG_MULTIPLE_STORAGES))
-      {
-        // multipleStoragesEnabled_ = true;
-        const Json::Value& multipleStoragesJson = pluginJson[CONFIG_MULTIPLE_STORAGES];
-        
-        if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_STORAGES) && multipleStoragesJson.isObject())
-        {
-          const Json::Value& storagesJson = multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_STORAGES];
-          Json::Value::Members storageIds = storagesJson.getMemberNames();
-    
-          for (Json::Value::Members::const_iterator it = storageIds.begin(); it != storageIds.end(); ++it)
-          {
-            if (!storagesJson[*it].isString())
-            {
-              LOG(ERROR) << "Storage path is not a string " << *it;
-              return -1;
-            }
-            fs::path storagePath = storagesJson[*it].asString();
-
-            CustomData::SetStorageRootPath(*it, storagesJson[*it].asString());
-          }
-
-          if (multipleStoragesJson.isMember(CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE) && multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].isString())
-          {
-            try
-            {
-              CustomData::SetCurrentWriteStorageId(multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString());
-            }
-            catch (Orthanc::OrthancException& ex)
-            {
-              return -1;
-            }
-          }
-
-          LOG(WARNING) << "multiple storages enabled.  Current Write storage : " << multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString();
-
-          OrthancPluginRegisterRestCallback(OrthancPlugins::GetGlobalContext(), "/plugins/advanced-storage/move-storage", PostMoveStorage);
-        }
-      }
-
-      if (advancedStorageConfiguration.IsSection(CONFIG_INDEXER))
-      {
-        OrthancPlugins::OrthancConfiguration indexerConfig;
-        advancedStorageConfiguration.GetSection(indexerConfig, CONFIG_INDEXER);
-
-        if (indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE, false))
-        {
-
-          std::list<std::string> indexedFolders, parsedExtensions, skippedExtensions;
-
-          unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
-          unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-          bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
-          bool enableVerboseLogs = indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE_VERBOSE_LOGS, false);
-
-          if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
-              indexedFolders.empty())
-          {
-            throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
-                                            "Missing configuration option for the AdvancedStorage - Indexer: " + std::string(CONFIG_INDEXER_FOLDERS));
-          }
-
-          indexerConfig.LookupListOfStrings(parsedExtensions, CONFIG_INDEXER_PARSED_EXTENSIONS, true);
-          indexerConfig.LookupListOfStrings(skippedExtensions, CONFIG_INDEXER_SKIPPED_EXTENSIONS, true);
-
-          if (parsedExtensions.size() > 0 && skippedExtensions.size() > 0)
-          {
-            throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange,
-                                            std::string("You can not configure \"") + CONFIG_INDEXER_PARSED_EXTENSIONS + "\" and \"" + CONFIG_INDEXER_SKIPPED_EXTENSIONS + "\" at the same time");
-          }
-
-
-          LOG(WARNING) << "creating FoldersIndexer";
-    
-          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership, enableVerboseLogs));
-        }
-        else
-        {
-          LOG(WARNING) << "FoldersIndexer is currently DISABLED";
-        }
-      }
-
-      if (advancedStorageConfiguration.IsSection(CONFIG_DELAYED_DELETION))
-      {
-        OrthancPlugins::OrthancConfiguration delayedDeletionConfig;
-        advancedStorageConfiguration.GetSection(delayedDeletionConfig, CONFIG_DELAYED_DELETION);
-
-        if (delayedDeletionConfig.GetBooleanValue(CONFIG_DELAYED_DELETION_ENABLE, false))
-        {
-          unsigned int throttleDelayMs = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-
-          LOG(WARNING) << "creating DelayedDeleter";
-    
-          boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          delayedFilesDeleter_.reset(new DelayedFilesDeleter(throttleDelayMs));
-        }
-        else
-        {
-          LOG(WARNING) << "DelayedDeletion is currently DISABLED";
-        }
-      }
-
-      OrthancPluginRegisterStorageArea3(context, StorageCreate, StorageReadRange, StorageRemove);
-
-      OrthancPlugins::RegisterRestCallback<GetAttachmentInfo>("/(studies|series|instances|patients)/([^/]+)/attachments/(.*)/info", true);
-      OrthancPlugins::RegisterRestCallback<GetPluginStatus>(std::string("/plugins/") + ORTHANC_PLUGIN_NAME + "/status", true);
-
-      OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
-=======
->>>>>>> 0f69a5773cadcff3e11821689b251c329cf3a1cd
     }
     else
     {

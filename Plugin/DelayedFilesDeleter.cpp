@@ -74,7 +74,13 @@ namespace OrthancPlugins
     while (isRunning_)
     {
       std::string pathToDeleteUtf8Str;
+
+#if ORTHANC_PLUGINS_VERSION_IS_ABOVE(1, 12, 10)
+      uint64_t valueId;      
+      while (queueFilesToDelete_.ReserveFront(pathToDeleteUtf8Str, valueId, 5) && isRunning_)
+#else
       while (queueFilesToDelete_.DequeueFront(pathToDeleteUtf8Str) && isRunning_)
+#endif
       {
         try
         {
@@ -90,6 +96,9 @@ namespace OrthancPlugins
         {
           // Ignore the error
         }
+#if ORTHANC_PLUGINS_VERSION_IS_ABOVE(1, 12, 10)
+        queueFilesToDelete_.Acknowledge(valueId);
+#endif
 
         if (throttleDelayMs_ > 0)
         {

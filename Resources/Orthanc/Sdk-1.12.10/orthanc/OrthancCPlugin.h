@@ -18,19 +18,21 @@
  *    - Possibly register its callback for changes to the DICOM store using ::OrthancPluginRegisterOnChangeCallback().
  *    - Possibly register a custom storage area using ::OrthancPluginRegisterStorageArea3().
  *    - Possibly register a custom database back-end area using OrthancPluginRegisterDatabaseBackendV4().
- *    - Possibly register a handler for C-Find SCP using OrthancPluginRegisterFindCallback().
- *    - Possibly register a handler for C-Find SCP against DICOM worklists using OrthancPluginRegisterWorklistCallback().
- *    - Possibly register a handler for C-Move SCP using OrthancPluginRegisterMoveCallback().
+ *    - Possibly register a handler for C-Find SCP using ::OrthancPluginRegisterFindCallback() or ::OrthancPluginRegisterFindCallback2().
+ *    - Possibly register a handler for C-Find SCP against DICOM worklists using ::OrthancPluginRegisterWorklistCallback() or ::OrthancPluginRegisterWorklistCallback2().
+ *    - Possibly register a handler for C-Move SCP using ::OrthancPluginRegisterMoveCallback() or ::OrthancPluginRegisterMoveCallback2().
  *    - Possibly register a custom decoder for DICOM images using OrthancPluginRegisterDecodeImageCallback().
  *    - Possibly register a callback to filter incoming HTTP requests using OrthancPluginRegisterIncomingHttpRequestFilter2().
  *    - Possibly register a callback to unserialize jobs using OrthancPluginRegisterJobsUnserializer().
  *    - Possibly register a callback to refresh its metrics using OrthancPluginRegisterRefreshMetricsCallback().
  *    - Possibly register a callback to answer chunked HTTP transfers using ::OrthancPluginRegisterChunkedRestCallback().
- *    - Possibly register a callback for Storage Commitment SCP using ::OrthancPluginRegisterStorageCommitmentScpCallback().
+ *    - Possibly register a callback for Storage Commitment SCP using ::OrthancPluginRegisterStorageCommitmentScpCallback() or ::OrthancPluginRegisterStorageCommitmentScpCallback2().
  *    - Possibly register a callback to keep/discard/modify incoming DICOM instances using OrthancPluginRegisterReceivedInstanceCallback().
  *    - Possibly register a custom transcoder for DICOM images using OrthancPluginRegisterTranscoderCallback().
  *    - Possibly register a callback to discard instances received through DICOM C-STORE using OrthancPluginRegisterIncomingCStoreInstanceFilter().
  *    - Possibly register a callback to branch a WebDAV virtual filesystem using OrthancPluginRegisterWebDavCollection().
+ *    - Possibly register a callback to authenticate HTTP requests using OrthancPluginRegisterHttpAuthentication().
+ *    - Possibly register a callback to store audit logs using OrthancPluginRegisterAuditLogHandler().
  * -# <tt>void OrthancPluginFinalize()</tt>:
  *    This function is invoked by Orthanc during its shutdown. The plugin
  *    must free all its memory.
@@ -70,6 +72,9 @@
  *
  * @defgroup DicomInstance DicomInstance
  * @brief Functions to access DICOM images that are managed by the Orthanc core.
+ *
+ * @defgroup DicomConnection DicomConnection
+ * @brief Functions to access DICOM connection parameters that are managed by the Orthanc core.
  **/
 
 
@@ -121,7 +126,7 @@
 
 #define ORTHANC_PLUGINS_MINIMAL_MAJOR_NUMBER     1
 #define ORTHANC_PLUGINS_MINIMAL_MINOR_NUMBER     12
-#define ORTHANC_PLUGINS_MINIMAL_REVISION_NUMBER  8
+#define ORTHANC_PLUGINS_MINIMAL_REVISION_NUMBER  10
 
 
 #if !defined(ORTHANC_PLUGINS_VERSION_IS_ABOVE)
@@ -178,6 +183,21 @@
 #  else
 #    pragma message("WARNING: You need to implement ORTHANC_PLUGINS_DEPRECATED for this compiler")
 #    define ORTHANC_PLUGIN_DEPRECATED
+#  endif
+#endif
+
+
+#ifndef ORTHANC_PLUGIN_SINCE_SDK
+/**
+ * This macro is used by the code model generator that produces the
+ * "OrthancPluginCodeModel.json" file. The code model is notably used
+ * to generate the Python and Java wrappers. Primitives that are not
+ * tagged with this macro were introduced before Orthanc 1.0.0.
+ **/
+#  if defined(__clang__)
+#    define ORTHANC_PLUGIN_SINCE_SDK(version) __attribute__ ((annotate("ORTHANC_PLUGIN_SINCE_SDK " version)))
+#  else
+#    define ORTHANC_PLUGIN_SINCE_SDK(version)
 #  endif
 #endif
 
@@ -282,7 +302,7 @@ extern "C"
     OrthancPluginErrorCode_DirectoryOverFile = 2000    /*!< The directory to be created is already occupied by a regular file */,
     OrthancPluginErrorCode_FileStorageCannotWrite = 2001    /*!< Unable to create a subdirectory or a file in the file storage */,
     OrthancPluginErrorCode_DirectoryExpected = 2002    /*!< The specified path does not point to a directory */,
-    OrthancPluginErrorCode_HttpPortInUse = 2003    /*!< The TCP port of the HTTP server is privileged or already in use */,
+    OrthancPluginErrorCode_HttpPortInUse = 2003    /*!< The TCP port of the HTTP server is privileged or already in use or one of the HTTP bind addresses does not exist */,
     OrthancPluginErrorCode_DicomPortInUse = 2004    /*!< The TCP port of the DICOM server is privileged or already in use */,
     OrthancPluginErrorCode_BadHttpStatusInRest = 2005    /*!< This HTTP status is not allowed in a REST API */,
     OrthancPluginErrorCode_RegularFileExpected = 2006    /*!< The specified path does not point to a regular file */,
@@ -418,6 +438,23 @@ extern "C"
      **/
     const char* const*      headersValues;
 
+
+    /* --------------------------------------------------
+       New in version 1.12.9
+       -------------------------------------------------- */
+
+    /**
+     * @brief If a HTTP authentication callback is registered, the
+     * content of the custom payload generated by the callback.
+     **/
+    const void*             authenticationPayload;
+
+    /**
+     * @brief The size of the custom authentication payload (0 if no
+     * authentication callback is registered).
+     **/
+    uint32_t                authenticationPayloadSize;
+
   } OrthancPluginHttpRequest;
 
 
@@ -483,6 +520,10 @@ extern "C"
     _OrthancPluginService_EnqueueValue = 57,                        /* New in Orthanc 1.12.8 */
     _OrthancPluginService_DequeueValue = 58,                        /* New in Orthanc 1.12.8 */
     _OrthancPluginService_GetQueueSize = 59,                        /* New in Orthanc 1.12.8 */
+    _OrthancPluginService_SetStableStatus = 60,                     /* New in Orthanc 1.12.9 */
+    _OrthancPluginService_EmitAuditLog = 61,                        /* New in Orthanc 1.12.9 */
+    _OrthancPluginService_ReserveQueueValue = 62,                   /* New in Orthanc 1.12.10 */
+    _OrthancPluginService_AcknowledgeQueueValue = 63,               /* New in Orthanc 1.12.10 */
 
     /* Registration of callbacks */
     _OrthancPluginService_RegisterRestCallback = 1000,
@@ -498,14 +539,20 @@ extern "C"
     _OrthancPluginService_RegisterIncomingHttpRequestFilter2 = 1010,
     _OrthancPluginService_RegisterRefreshMetricsCallback = 1011,
     _OrthancPluginService_RegisterChunkedRestCallback = 1012,  /* New in Orthanc 1.5.7 */
-    _OrthancPluginService_RegisterStorageCommitmentScpCallback = 1013,
-    _OrthancPluginService_RegisterIncomingDicomInstanceFilter = 1014,
+    _OrthancPluginService_RegisterStorageCommitmentScpCallback = 1013, /* New in Orthanc 1.6.0 */
+    _OrthancPluginService_RegisterIncomingDicomInstanceFilter = 1014,  /* New in Orthanc 1.6.1 */
     _OrthancPluginService_RegisterTranscoderCallback = 1015,   /* New in Orthanc 1.7.0 */
     _OrthancPluginService_RegisterStorageArea2 = 1016,         /* New in Orthanc 1.9.0 */
     _OrthancPluginService_RegisterIncomingCStoreInstanceFilter = 1017,  /* New in Orthanc 1.10.0 */
     _OrthancPluginService_RegisterReceivedInstanceCallback = 1018,  /* New in Orthanc 1.10.0 */
     _OrthancPluginService_RegisterWebDavCollection = 1019,     /* New in Orthanc 1.10.1 */
     _OrthancPluginService_RegisterStorageArea3 = 1020,         /* New in Orthanc 1.12.8 */
+    _OrthancPluginService_RegisterHttpAuthentication = 1021,   /* New in Orthanc 1.12.9 */
+    _OrthancPluginService_RegisterAuditLogHandler = 1022,      /* New in Orthanc 1.12.9 */
+    _OrthancPluginService_RegisterFindCallback2 = 1023,        /* New in Orthanc 1.12.10 */
+    _OrthancPluginService_RegisterMoveCallback2 = 1024,        /* New in Orthanc 1.12.10 */
+    _OrthancPluginService_RegisterWorklistCallback2 = 1025,    /* New in Orthanc 1.12.10 */
+    _OrthancPluginService_RegisterStorageCommitmentScpCallback2 = 1026, /* New in Orthanc 1.12.0 */
 
     /* Sending answers to REST calls */
     _OrthancPluginService_AnswerBuffer = 2000,
@@ -624,7 +671,12 @@ extern "C"
     _OrthancPluginService_SubmitJob = 9002,
     _OrthancPluginService_RegisterJobsUnserializer = 9003,
     _OrthancPluginService_CreateJob2 = 9004,  /* New in SDK 1.11.3 */
-    
+
+    /* Access to DICOM connection */
+    _OrthancPluginService_GetConnectionRemoteAet = 10000,  /* New in SDK 1.12.10 */
+    _OrthancPluginService_GetConnectionRemoteIp = 10001,   /* New in SDK 1.12.10 */
+    _OrthancPluginService_GetConnectionCalledAet = 10002,  /* New in SDK 1.12.10 */
+
     _OrthancPluginService_INTERNAL = 0x7fffffff
   } _OrthancPluginService;
 
@@ -694,7 +746,7 @@ extern "C"
      * This format describes a color image. The pixels are stored in 6
      * consecutive bytes. The memory layout is RRGGBB.
      **/
-    OrthancPluginPixelFormat_RGB48 = 7,
+    OrthancPluginPixelFormat_RGB48 ORTHANC_PLUGIN_SINCE_SDK("1.3.1") = 7,
 
     /**
      * @brief Graylevel, unsigned 32bpp image.
@@ -702,7 +754,7 @@ extern "C"
      * The image is graylevel. Each pixel is unsigned and stored in
      * four bytes.
      **/
-    OrthancPluginPixelFormat_Grayscale32 = 8,
+    OrthancPluginPixelFormat_Grayscale32 ORTHANC_PLUGIN_SINCE_SDK("1.3.1") = 8,
 
     /**
      * @brief Graylevel, floating-point 32bpp image.
@@ -710,7 +762,7 @@ extern "C"
      * The image is graylevel. Each pixel is floating-point and stored
      * in four bytes.
      **/
-    OrthancPluginPixelFormat_Float32 = 9,
+    OrthancPluginPixelFormat_Float32 ORTHANC_PLUGIN_SINCE_SDK("1.3.1") = 9,
 
     /**
      * @brief Color image in BGRA32 format.
@@ -718,7 +770,7 @@ extern "C"
      * This format describes a color image. The pixels are stored in 4
      * consecutive bytes. The memory layout is BGRA.
      **/
-    OrthancPluginPixelFormat_BGRA32 = 10,
+    OrthancPluginPixelFormat_BGRA32 ORTHANC_PLUGIN_SINCE_SDK("1.3.1") = 10,
 
     /**
      * @brief Graylevel, unsigned 64bpp image.
@@ -726,7 +778,7 @@ extern "C"
      * The image is graylevel. Each pixel is unsigned and stored in
      * eight bytes.
      **/
-    OrthancPluginPixelFormat_Grayscale64 = 11,
+    OrthancPluginPixelFormat_Grayscale64 ORTHANC_PLUGIN_SINCE_SDK("1.4.0") = 11,
 
     _OrthancPluginPixelFormat_INTERNAL = 0x7fffffff
   } OrthancPluginPixelFormat;
@@ -741,7 +793,7 @@ extern "C"
     OrthancPluginContentType_Unknown = 0,             /*!< Unknown content type */
     OrthancPluginContentType_Dicom = 1,               /*!< DICOM */
     OrthancPluginContentType_DicomAsJson = 2,         /*!< JSON summary of a DICOM file */
-    OrthancPluginContentType_DicomUntilPixelData = 3, /*!< DICOM Header till pixel data */
+    OrthancPluginContentType_DicomUntilPixelData ORTHANC_PLUGIN_SINCE_SDK("1.9.2") = 3, /*!< DICOM Header till pixel data */
 
     _OrthancPluginContentType_INTERNAL = 0x7fffffff
   } OrthancPluginContentType;
@@ -785,11 +837,11 @@ extern "C"
     OrthancPluginChangeType_OrthancStopped = 11,    /*!< Orthanc is stopping */
     OrthancPluginChangeType_UpdatedAttachment = 12, /*!< Some user-defined attachment has changed for this resource */
     OrthancPluginChangeType_UpdatedMetadata = 13,   /*!< Some user-defined metadata has changed for this resource */
-    OrthancPluginChangeType_UpdatedPeers = 14,      /*!< The list of Orthanc peers has changed */
-    OrthancPluginChangeType_UpdatedModalities = 15, /*!< The list of DICOM modalities has changed */
-    OrthancPluginChangeType_JobSubmitted = 16,      /*!< New Job submitted */
-    OrthancPluginChangeType_JobSuccess = 17,        /*!< A Job has completed successfully */
-    OrthancPluginChangeType_JobFailure = 18,        /*!< A Job has failed */
+    OrthancPluginChangeType_UpdatedPeers ORTHANC_PLUGIN_SINCE_SDK("1.4.2") = 14,      /*!< The list of Orthanc peers has changed */
+    OrthancPluginChangeType_UpdatedModalities ORTHANC_PLUGIN_SINCE_SDK("1.4.2") = 15, /*!< The list of DICOM modalities has changed */
+    OrthancPluginChangeType_JobSubmitted ORTHANC_PLUGIN_SINCE_SDK("1.7.2") = 16,      /*!< New Job submitted */
+    OrthancPluginChangeType_JobSuccess ORTHANC_PLUGIN_SINCE_SDK("1.7.2") = 17,        /*!< A Job has completed successfully */
+    OrthancPluginChangeType_JobFailure ORTHANC_PLUGIN_SINCE_SDK("1.7.2") = 18,        /*!< A Job has failed */
 
     _OrthancPluginChangeType_INTERNAL = 0x7fffffff
   } OrthancPluginChangeType;
@@ -805,7 +857,7 @@ extern "C"
     OrthancPluginCompressionType_ZlibWithSize = 1,  /*!< zlib, prefixed with uncompressed size (uint64_t) */
     OrthancPluginCompressionType_Gzip = 2,          /*!< Standard gzip compression */
     OrthancPluginCompressionType_GzipWithSize = 3,  /*!< gzip, prefixed with uncompressed size (uint64_t) */
-    OrthancPluginCompressionType_None = 4,          /*!< No compression (new in Orthanc 1.12.8) */
+    OrthancPluginCompressionType_None ORTHANC_PLUGIN_SINCE_SDK("1.12.8") = 4,  /*!< No compression (new in Orthanc 1.12.8) */
 
     _OrthancPluginCompressionType_INTERNAL = 0x7fffffff
   } OrthancPluginCompressionType;
@@ -892,8 +944,8 @@ extern "C"
     OrthancPluginDicomToJsonFlags_IncludePixelData      = (1 << 3),  /*!< Include the pixel data */
     OrthancPluginDicomToJsonFlags_ConvertBinaryToAscii  = (1 << 4),  /*!< Output binary tags as-is, dropping non-ASCII */
     OrthancPluginDicomToJsonFlags_ConvertBinaryToNull   = (1 << 5),  /*!< Signal binary tags as null values */
-    OrthancPluginDicomToJsonFlags_StopAfterPixelData    = (1 << 6),  /*!< Stop processing after pixel data (new in 1.9.1) */
-    OrthancPluginDicomToJsonFlags_SkipGroupLengths      = (1 << 7),  /*!< Skip tags whose element is zero (new in 1.9.1) */
+    OrthancPluginDicomToJsonFlags_StopAfterPixelData ORTHANC_PLUGIN_SINCE_SDK("1.9.1") = (1 << 6),  /*!< Stop processing after pixel data (new in 1.9.1) */
+    OrthancPluginDicomToJsonFlags_SkipGroupLengths ORTHANC_PLUGIN_SINCE_SDK("1.9.1")   = (1 << 7),  /*!< Skip tags whose element is zero (new in 1.9.1) */
 
     _OrthancPluginDicomToJsonFlags_INTERNAL = 0x7fffffff
   } OrthancPluginDicomToJsonFlags;
@@ -906,7 +958,7 @@ extern "C"
    **/
   typedef enum
   {
-    OrthancPluginCreateDicomFlags_None                  = 0,         /*!< Default mode */
+    OrthancPluginCreateDicomFlags_None ORTHANC_PLUGIN_SINCE_SDK("1.2.0") = 0,  /*!< Default mode */
     OrthancPluginCreateDicomFlags_DecodeDataUriScheme   = (1 << 0),  /*!< Decode fields encoded using data URI scheme */
     OrthancPluginCreateDicomFlags_GenerateIdentifiers   = (1 << 1),  /*!< Automatically generate DICOM identifiers */
 
@@ -956,7 +1008,7 @@ extern "C"
     OrthancPluginInstanceOrigin_RestApi = 3,        /*!< Instance received through REST API of Orthanc */
     OrthancPluginInstanceOrigin_Plugin = 4,         /*!< Instance added to Orthanc by a plugin */
     OrthancPluginInstanceOrigin_Lua = 5,            /*!< Instance added to Orthanc by a Lua script */
-    OrthancPluginInstanceOrigin_WebDav = 6,         /*!< Instance received through WebDAV (new in 1.8.0) */
+    OrthancPluginInstanceOrigin_WebDav ORTHANC_PLUGIN_SINCE_SDK("1.8.0") = 6,  /*!< Instance received through WebDAV (new in 1.8.0) */
 
     _OrthancPluginInstanceOrigin_INTERNAL = 0x7fffffff
   } OrthancPluginInstanceOrigin;
@@ -965,7 +1017,7 @@ extern "C"
   /**
    * The possible status for one single step of a job.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   {
     OrthancPluginJobStepStatus_Success = 1,   /*!< The job has successfully executed all its steps */
     OrthancPluginJobStepStatus_Failure = 2,   /*!< The job has failed while executing this step */
@@ -979,7 +1031,7 @@ extern "C"
    * the "paused" condition and the "final" conditions (success,
    * failure, or canceled).
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   {
     OrthancPluginJobStopReason_Success = 1,  /*!< The job has succeeded */
     OrthancPluginJobStopReason_Paused = 2,   /*!< The job was paused, and will be resumed later */
@@ -991,7 +1043,7 @@ extern "C"
   /**
    * The available types of metrics.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
   {
     OrthancPluginMetricsType_Default = 0,   /*!< Default metrics */
 
@@ -1008,7 +1060,7 @@ extern "C"
    * The available modes to export a binary DICOM tag into a DICOMweb
    * JSON or XML document.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
   {
     OrthancPluginDicomWebBinaryMode_Ignore = 0,        /*!< Don't include binary tags */
     OrthancPluginDicomWebBinaryMode_InlineBinary = 1,  /*!< Inline encoding using Base64 */
@@ -1021,7 +1073,7 @@ extern "C"
    * storage commitment.
    * http://dicom.nema.org/medical/dicom/2019e/output/chtml/part03/sect_C.14.html#sect_C.14.1.1
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.6.0")
   {
     /**
      * Success: The DICOM instance is properly stored in the SCP
@@ -1069,7 +1121,7 @@ extern "C"
   /**
    * The action to be taken after ReceivedInstanceCallback is triggered
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.10.0")
   {
     OrthancPluginReceivedInstanceAction_KeepAsIs = 1, /*!< Keep the instance as is */
     OrthancPluginReceivedInstanceAction_Modify = 2,   /*!< Modify the instance */
@@ -1083,7 +1135,7 @@ extern "C"
    * Mode specifying how to load a DICOM instance.
    * @see OrthancPluginLoadDicomInstance()
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.1")
   {
     /**
      * Load the whole DICOM file, including pixel data
@@ -1113,7 +1165,7 @@ extern "C"
    * These values must match those of enumeration "LogLevel" in the
    * Orthanc Core.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.4")
   {
     OrthancPluginLogLevel_Error = 0,    /*!< Error log level */
     OrthancPluginLogLevel_Warning = 1,  /*!< Warning log level */
@@ -1130,7 +1182,7 @@ extern "C"
    * These values must match those of enumeration "LogCategory" in the
    * Orthanc Core.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.4")
   {
     OrthancPluginLogCategory_Generic = (1 << 0),  /*!< Generic (default) category */
     OrthancPluginLogCategory_Plugins = (1 << 1),  /*!< Plugin engine related logs (shall not be used by plugins) */
@@ -1147,7 +1199,7 @@ extern "C"
   /**
    * The store status related to the adoption of a DICOM instance.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   {
     OrthancPluginStoreStatus_Success = 0,         /*!< The file has been stored/adopted */
     OrthancPluginStoreStatus_AlreadyStored = 1,   /*!< The file has already been stored/adopted (only if OverwriteInstances is set to false)*/
@@ -1158,10 +1210,11 @@ extern "C"
     _OrthancPluginStoreStatus_INTERNAL = 0x7fffffff
   } OrthancPluginStoreStatus;
 
+
   /**
    * The supported modes to remove an element from a queue.
    **/
-  typedef enum
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   {
     OrthancPluginQueueOrigin_Front = 0,    /*!< Dequeue from the front of the queue */
     OrthancPluginQueueOrigin_Back = 1,     /*!< Dequeue from the back of the queue */
@@ -1169,6 +1222,31 @@ extern "C"
     _OrthancPluginQueueOrigin_INTERNAL = 0x7fffffff
   } OrthancPluginQueueOrigin;
 
+
+  /**
+   * The "Stable" status of a resource.
+   **/
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.9")
+  {
+    OrthancPluginStableStatus_Stable = 0,     /*!< The resource is stable */
+    OrthancPluginStableStatus_Unstable = 1,   /*!< The resource is unstable */
+
+    _OrthancPluginStableStatus_INTERNAL = 0x7fffffff
+  } OrthancPluginStableStatus;
+
+
+  /**
+   * Status associated with the authentication of a HTTP request.
+   **/
+  typedef enum ORTHANC_PLUGIN_SINCE_SDK("1.12.9")
+  {
+    OrthancPluginHttpAuthenticationStatus_Granted = 0,       /*!< The authentication has been granted */
+    OrthancPluginHttpAuthenticationStatus_Unauthorized = 1,  /*!< The authentication has failed (401 HTTP status) */
+    OrthancPluginHttpAuthenticationStatus_Forbidden = 2,     /*!< The authorization has failed (403 HTTP status) */
+    OrthancPluginHttpAuthenticationStatus_Redirect = 3,      /*!< Redirect to another path (307 HTTP status, e.g., for login) */
+
+    _OrthancPluginHttpAuthenticationStatus_INTERNAL = 0x7fffffff
+  } OrthancPluginHttpAuthenticationStatus;
 
 
   /**
@@ -1200,7 +1278,7 @@ extern "C"
    * content of the buffer is not useful anymore, it must be free by a
    * call to ::OrthancPluginFreeMemoryBuffer64().
    **/
-  typedef struct
+  ORTHANC_PLUGIN_SINCE_SDK("1.9.0") typedef struct
   {
     /**
      * @brief The content of the buffer.
@@ -1268,7 +1346,8 @@ extern "C"
    * @brief Opaque structure to an object that represents a C-Find query.
    * @ingroup DicomCallbacks
    **/
-  typedef struct _OrthancPluginFindQuery_t OrthancPluginFindQuery;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
+    _OrthancPluginFindQuery_t OrthancPluginFindQuery;
 
 
 
@@ -1276,7 +1355,8 @@ extern "C"
    * @brief Opaque structure to an object that represents the answers to a C-Find query for worklists.
    * @ingroup DicomCallbacks
    **/
-  typedef struct _OrthancPluginFindAnswers_t OrthancPluginFindAnswers;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
+    _OrthancPluginFindAnswers_t OrthancPluginFindAnswers;
 
 
 
@@ -1284,7 +1364,8 @@ extern "C"
    * @brief Opaque structure to an object that can be used to check whether a DICOM instance matches a C-Find query.
    * @ingroup Toolbox
    **/
-  typedef struct _OrthancPluginFindMatcher_t OrthancPluginFindMatcher;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.2.0")
+    _OrthancPluginFindMatcher_t OrthancPluginFindMatcher;
 
 
   
@@ -1292,7 +1373,8 @@ extern "C"
    * @brief Opaque structure to the set of remote Orthanc Peers that are known to the local Orthanc server.
    * @ingroup Toolbox
    **/
-  typedef struct _OrthancPluginPeers_t OrthancPluginPeers;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
+    _OrthancPluginPeers_t OrthancPluginPeers;
 
 
 
@@ -1300,7 +1382,8 @@ extern "C"
    * @brief Opaque structure to a job to be executed by Orthanc.
    * @ingroup Toolbox
    **/
-  typedef struct _OrthancPluginJob_t OrthancPluginJob;  
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
+    _OrthancPluginJob_t OrthancPluginJob;
 
 
 
@@ -1309,9 +1392,17 @@ extern "C"
    * document used in DICOMweb.
    * @ingroup Toolbox
    **/
-  typedef struct _OrthancPluginDicomWebNode_t OrthancPluginDicomWebNode;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
+    _OrthancPluginDicomWebNode_t OrthancPluginDicomWebNode;
 
   
+  /**
+   * @brief Opaque structure that represents the parameters of a DICOM connection.
+   * @ingroup DicomConnection
+   **/
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+    _OrthancPluginDicomConnection_t OrthancPluginDicomConnection;
+
 
   /**
    * @brief Signature of a callback function that answers to a REST request.
@@ -1319,7 +1410,7 @@ extern "C"
    **/
   typedef OrthancPluginErrorCode (*OrthancPluginRestCallback) (
     OrthancPluginRestOutput* output,
-    const char* url,
+    const char* uri,
     const OrthancPluginHttpRequest* request);
 
 
@@ -1580,6 +1671,24 @@ extern "C"
     const char*                       calledAet);
 
 
+  /**
+   * @brief Callback to handle the C-Find SCP requests for worklists (v2).
+   *
+   * Signature of a callback function that is triggered when Orthanc
+   * receives a C-Find SCP request against modality worklists.
+   *
+   * @param answers The target structure where answers must be stored.
+   * @param query The worklist query.
+   * @param connection The DICOM connection from which the request originates.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  typedef OrthancPluginErrorCode (*OrthancPluginWorklistCallback2) (
+    OrthancPluginWorklistAnswers*       answers,
+    const OrthancPluginWorklistQuery*   query,
+    const OrthancPluginDicomConnection* connection);
+
 
   /**
    * @brief Callback to filter incoming HTTP requests received by Orthanc.
@@ -1677,6 +1786,25 @@ extern "C"
     const char*                   calledAet);
 
 
+    /**
+   * @brief Callback to handle incoming C-Find SCP requests (v2).
+   *
+   * Signature of a callback function that is triggered whenever
+   * Orthanc receives a C-Find SCP request not concerning modality
+   * worklists.
+   *
+   * @param answers The target structure where answers must be stored.
+   * @param query The worklist query.
+   * @param connection The DICOM connection from which the request originates.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  typedef OrthancPluginErrorCode (*OrthancPluginFindCallback2) (
+    OrthancPluginFindAnswers*             answers,
+    const OrthancPluginFindQuery*         query,
+    const OrthancPluginDicomConnection*   connection);
+
 
   /**
    * @brief Callback to handle incoming C-Move SCP requests.
@@ -1724,7 +1852,52 @@ extern "C"
     const char*                sourceAet,
     const char*                targetAet,
     uint16_t                   originatorId);
+
     
+  /**
+   * @brief Callback to handle incoming C-Move SCP requests (v2).
+   *
+   * Signature of a callback function that is triggered whenever
+   * Orthanc receives a C-Move SCP request. The callback receives the
+   * type of the resource of interest (study, series, instance...)
+   * together with the DICOM tags containing its identifiers. In turn,
+   * the plugin must create a driver object that will be responsible
+   * for driving the successive move suboperations.
+   *
+   * @param resourceType The type of the resource of interest. Note
+   * that this might be set to ResourceType_None if the
+   * QueryRetrieveLevel (0008,0052) tag was not provided by the
+   * issuer (i.e. the originator modality).
+   * @param patientId Content of the PatientID (0x0010, 0x0020) tag of the resource of interest. Might be NULL.
+   * @param accessionNumber Content of the AccessionNumber (0x0008, 0x0050) tag. Might be NULL.
+   * @param studyInstanceUid Content of the StudyInstanceUID (0x0020, 0x000d) tag. Might be NULL.
+   * @param seriesInstanceUid Content of the SeriesInstanceUID (0x0020, 0x000e) tag. Might be NULL.
+   * @param sopInstanceUid Content of the SOPInstanceUID (0x0008, 0x0018) tag. Might be NULL.
+   * @param connection The DICOM connection from which the request originates.
+   * @param targetAet The Application Entity Title (AET) of the
+   * modality that should receive the DICOM files.
+   * @param originatorId The Message ID issued by the originator modality,
+   * as found in tag (0000,0110) of the DICOM query emitted by the issuer.
+   *
+   * @return The NULL value if the plugin cannot deal with this query,
+   * or a pointer to the driver object that is responsible for
+   * handling the successive move suboperations.
+   *
+   * @note If targetAet equals sourceAet, this is actually a query/retrieve operation.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  typedef void* (*OrthancPluginMoveCallback2) (
+    OrthancPluginResourceType  resourceType,
+    const char*                patientId,
+    const char*                accessionNumber,
+    const char*                studyInstanceUid,
+    const char*                seriesInstanceUid,
+    const char*                sopInstanceUid,
+    const OrthancPluginDicomConnection* connection,
+    const char*                targetAet,
+    uint16_t                   originatorId);
+
 
   /**
    * @brief Callback to read the size of a C-Move driver.
@@ -1732,7 +1905,7 @@ extern "C"
    * Signature of a callback function that returns the number of
    * C-Move suboperations that are to be achieved by the given C-Move
    * driver. This driver is the return value of a previous call to the
-   * OrthancPluginMoveCallback() callback.
+   * OrthancPluginMoveCallback() or OrthancPluginMoveCallback2() callback.
    *
    * @param moveDriver The C-Move driver of interest.
    * @return The number of suboperations. 
@@ -1747,7 +1920,7 @@ extern "C"
    * Signature of a callback function that applies the next C-Move
    * suboperation that os to be achieved by the given C-Move
    * driver. This driver is the return value of a previous call to the
-   * OrthancPluginMoveCallback() callback.
+   * OrthancPluginMoveCallback() or OrthancPluginMoveCallback2() callback.
    *
    * @param moveDriver The C-Move driver of interest.
    * @return 0 if success, or the error code if failure.
@@ -1762,7 +1935,7 @@ extern "C"
    * Signature of a callback function that releases the resources
    * allocated by the given C-Move driver. This driver is the return
    * value of a previous call to the OrthancPluginMoveCallback()
-   * callback.
+   * or OrthancPluginMoveCallback2() callback.
    *
    * @param moveDriver The C-Move driver of interest.
    * @ingroup DicomCallbacks
@@ -2106,8 +2279,9 @@ extern "C"
    * @see OrthancPluginCheckVersion()
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.0")
   ORTHANC_PLUGIN_INLINE int32_t  OrthancPluginCheckVersionAdvanced(
-    OrthancPluginContext* context,
+    const OrthancPluginContext* context,
     int32_t expectedMajor,
     int32_t expectedMinor,
     int32_t expectedRevision)
@@ -2142,7 +2316,9 @@ extern "C"
         sizeof(int32_t) != sizeof(OrthancPluginLogLevel) ||
         sizeof(int32_t) != sizeof(OrthancPluginLogCategory) ||
         sizeof(int32_t) != sizeof(OrthancPluginStoreStatus) ||
-        sizeof(int32_t) != sizeof(OrthancPluginQueueOrigin))
+        sizeof(int32_t) != sizeof(OrthancPluginQueueOrigin) ||
+        sizeof(int32_t) != sizeof(OrthancPluginStableStatus) ||
+        sizeof(int32_t) != sizeof(OrthancPluginHttpAuthenticationStatus))
     {
       /* Mismatch in the size of the enumerations */
       return 0;
@@ -2220,7 +2396,7 @@ extern "C"
    * @ingroup Callbacks
    **/
   ORTHANC_PLUGIN_INLINE int32_t  OrthancPluginCheckVersion(
-    OrthancPluginContext* context)
+    const OrthancPluginContext* context)
   {
     return OrthancPluginCheckVersionAdvanced(
       context,
@@ -2254,6 +2430,7 @@ extern "C"
    * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
    * @param buffer The memory buffer to release.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.9.0")
   ORTHANC_PLUGIN_INLINE void  OrthancPluginFreeMemoryBuffer64(
     OrthancPluginContext* context, 
     OrthancPluginMemoryBuffer64* buffer)
@@ -3654,6 +3831,7 @@ extern "C"
    * @param plugin Identifier of your plugin (it must match "OrthancPluginGetName()").
    * @param uri The root URI for this plugin.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.4")
   ORTHANC_PLUGIN_INLINE void OrthancPluginSetRootUri2(
     OrthancPluginContext*  context,
     const char*            plugin,
@@ -3704,6 +3882,7 @@ extern "C"
    * @param plugin Identifier of your plugin (it must match "OrthancPluginGetName()").
    * @param description The description.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.4")
   ORTHANC_PLUGIN_INLINE void OrthancPluginSetDescription2(
     OrthancPluginContext*  context,
     const char*            plugin,
@@ -3754,6 +3933,7 @@ extern "C"
    * @param plugin Identifier of your plugin (it must match "OrthancPluginGetName()").
    * @param javascript The custom JavaScript code.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.4")
   ORTHANC_PLUGIN_INLINE void OrthancPluginExtendOrthancExplorer2(
     OrthancPluginContext*  context,
     const char*            plugin,
@@ -5275,6 +5455,7 @@ extern "C"
    * @see OrthancPluginRegisterDictionaryTag()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.2.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginRegisterPrivateDictionaryTag(
     OrthancPluginContext*             context,
     uint16_t                          group,
@@ -5519,7 +5700,6 @@ extern "C"
   }
 
 
-  
   typedef struct
   {
     OrthancPluginWorklistAnswers*      answers;
@@ -6067,6 +6247,7 @@ extern "C"
    * @see OrthancPluginSendMultipartItem()
    * @ingroup REST
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.0.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginSendMultipartItem2(
     OrthancPluginContext*    context,
     OrthancPluginRestOutput* output,
@@ -6105,6 +6286,7 @@ extern "C"
    * @ingroup Callbacks
    * @deprecated Please instead use OrthancPluginRegisterIncomingHttpRequestFilter2()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_DEPRECATED ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterIncomingHttpRequestFilter(
     OrthancPluginContext*                   context,
     OrthancPluginIncomingHttpRequestFilter  callback)
@@ -6180,6 +6362,7 @@ extern "C"
    * @see OrthancPluginCallPeerApi()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginHttpClient(
     OrthancPluginContext*       context,
     OrthancPluginMemoryBuffer*  answerBody,
@@ -6235,6 +6418,7 @@ extern "C"
    * containing the UUID. This string must be freed by OrthancPluginFreeString().
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGenerateUuid(
     OrthancPluginContext*  context)
   {
@@ -6274,6 +6458,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterFindCallback(
     OrthancPluginContext*      context,
     OrthancPluginFindCallback  callback)
@@ -6313,6 +6498,7 @@ extern "C"
    * @ingroup DicomCallbacks
    * @see OrthancPluginCreateDicom()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginFindAddAnswer(
     OrthancPluginContext*      context,
     OrthancPluginFindAnswers*  answers,
@@ -6342,6 +6528,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginFindMarkIncomplete(
     OrthancPluginContext*      context,
     OrthancPluginFindAnswers*  answers)
@@ -6366,6 +6553,7 @@ extern "C"
    * @return The number of tags.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE uint32_t  OrthancPluginGetFindQuerySize(
     OrthancPluginContext*          context,
     const OrthancPluginFindQuery*  query)
@@ -6403,6 +6591,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginGetFindQueryTag(
     OrthancPluginContext*          context,
     uint16_t*                      group,
@@ -6434,6 +6623,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE char*  OrthancPluginGetFindQueryTagName(
     OrthancPluginContext*          context,
     const OrthancPluginFindQuery*  query,
@@ -6472,6 +6662,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE char*  OrthancPluginGetFindQueryValue(
     OrthancPluginContext*          context,
     const OrthancPluginFindQuery*  query,
@@ -6520,6 +6711,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.1.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterMoveCallback(
     OrthancPluginContext*       context,
     OrthancPluginMoveCallback   callback,
@@ -6559,6 +6751,7 @@ extern "C"
    * @return The newly allocated matcher. It must be freed with OrthancPluginFreeFindMatcher().
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.2.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginFindMatcher* OrthancPluginCreateFindMatcher(
     OrthancPluginContext*  context,
     const void*            query,
@@ -6597,6 +6790,7 @@ extern "C"
    * @param matcher The matcher of interest.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.2.0")
   ORTHANC_PLUGIN_INLINE void  OrthancPluginFreeFindMatcher(
     OrthancPluginContext*     context, 
     OrthancPluginFindMatcher* matcher)
@@ -6630,6 +6824,7 @@ extern "C"
    * @return 1 if the DICOM instance matches the query, 0 otherwise.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.2.0")
   ORTHANC_PLUGIN_INLINE int32_t  OrthancPluginFindMatcherIsMatch(
     OrthancPluginContext*            context,
     const OrthancPluginFindMatcher*  matcher,
@@ -6672,6 +6867,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.3.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterIncomingHttpRequestFilter2(
     OrthancPluginContext*                   context,
     OrthancPluginIncomingHttpRequestFilter2 callback)
@@ -6700,6 +6896,7 @@ extern "C"
    * This structure must be freed with OrthancPluginFreePeers().
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE OrthancPluginPeers* OrthancPluginGetPeers(
     OrthancPluginContext*  context)
   {
@@ -6734,6 +6931,7 @@ extern "C"
    * @param peers The data structure describing the Orthanc peers.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE void  OrthancPluginFreePeers(
     OrthancPluginContext*     context, 
     OrthancPluginPeers* peers)
@@ -6764,6 +6962,7 @@ extern "C"
    * @result The number of peers. 
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE uint32_t OrthancPluginGetPeersCount(
     OrthancPluginContext*      context,
     const OrthancPluginPeers*  peers)
@@ -6812,6 +7011,7 @@ extern "C"
    * @result The symbolic name, or NULL in the case of an error.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetPeerName(
     OrthancPluginContext*      context,
     const OrthancPluginPeers*  peers,
@@ -6853,6 +7053,7 @@ extern "C"
    * @result The URL, or NULL in the case of an error.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetPeerUrl(
     OrthancPluginContext*      context,
     const OrthancPluginPeers*  peers,
@@ -6899,6 +7100,7 @@ extern "C"
    * @result The value of the user property, or NULL if it is not defined.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetPeerUserProperty(
     OrthancPluginContext*      context,
     const OrthancPluginPeers*  peers,
@@ -6980,6 +7182,7 @@ extern "C"
    * @see OrthancPluginHttpClient()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginCallPeerApi(
     OrthancPluginContext*       context,
     OrthancPluginMemoryBuffer*  answerBody,
@@ -7066,6 +7269,7 @@ extern "C"
    * @ingroup Toolbox
    * @deprecated This signature should not be used anymore since Orthanc SDK 1.11.3.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_DEPRECATED ORTHANC_PLUGIN_INLINE OrthancPluginJob *OrthancPluginCreateJob(
     OrthancPluginContext           *context,
     void                           *job,
@@ -7152,6 +7356,7 @@ extern "C"
    * as long as it is not submitted with OrthancPluginSubmitJob().
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.11.3")
   ORTHANC_PLUGIN_INLINE OrthancPluginJob *OrthancPluginCreateJob2(
     OrthancPluginContext           *context,
     void                           *job,
@@ -7207,6 +7412,7 @@ extern "C"
    * @param job The job.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE void  OrthancPluginFreeJob(
     OrthancPluginContext* context, 
     OrthancPluginJob*     job)
@@ -7239,6 +7445,7 @@ extern "C"
    * @return ID of the newly-submitted job. This string must be freed by OrthancPluginFreeString().
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE char *OrthancPluginSubmitJob(
     OrthancPluginContext   *context,
     OrthancPluginJob       *job,
@@ -7284,6 +7491,7 @@ extern "C"
    * @param unserializer The job unserializer.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.4.2")
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterJobsUnserializer(
     OrthancPluginContext*          context,
     OrthancPluginJobsUnserializer  unserializer)
@@ -7320,6 +7528,7 @@ extern "C"
    * @param log Whether to also write the detailed error to the Orthanc logs.
    * @ingroup REST
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.0")
   ORTHANC_PLUGIN_INLINE void OrthancPluginSetHttpErrorDetails(
     OrthancPluginContext*    context,
     OrthancPluginRestOutput* output,
@@ -7352,6 +7561,7 @@ extern "C"
    * string, do not free it.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.0")
   ORTHANC_PLUGIN_INLINE const char* OrthancPluginAutodetectMimeType(
     OrthancPluginContext*  context,
     const char*            path)
@@ -7398,6 +7608,7 @@ extern "C"
    * @ingroup Toolbox
    * @see OrthancPluginSetMetricsIntegerValue()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
   ORTHANC_PLUGIN_INLINE void OrthancPluginSetMetricsValue(
     OrthancPluginContext*     context,
     const char*               name,
@@ -7429,6 +7640,7 @@ extern "C"
    * @param callback The callback function to handle the refresh.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterRefreshMetricsCallback(
     OrthancPluginContext*               context,
     OrthancPluginRefreshMetricsCallback callback)
@@ -7465,6 +7677,7 @@ extern "C"
    * @deprecated OrthancPluginEncodeDicomWebJson2()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
   ORTHANC_PLUGIN_DEPRECATED ORTHANC_PLUGIN_INLINE char* OrthancPluginEncodeDicomWebJson(
     OrthancPluginContext*                context,
     const void*                          dicom,
@@ -7507,6 +7720,7 @@ extern "C"
    * @deprecated OrthancPluginEncodeDicomWebXml2()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.4")
   ORTHANC_PLUGIN_DEPRECATED ORTHANC_PLUGIN_INLINE char* OrthancPluginEncodeDicomWebXml(
     OrthancPluginContext*                context,
     const void*                          dicom,
@@ -7559,6 +7773,7 @@ extern "C"
    * @see OrthancPluginCreateDicom()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginEncodeDicomWebJson2(
     OrthancPluginContext*                 context,
     const void*                           dicom,
@@ -7603,6 +7818,7 @@ extern "C"
    * @see OrthancPluginCreateDicom()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginEncodeDicomWebXml2(
     OrthancPluginContext*                 context,
     const void*                           dicom,
@@ -7816,6 +8032,7 @@ extern "C"
    * @see OrthancPluginHttpClient()
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.7")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginChunkedHttpClient(
     OrthancPluginContext*                          context,
     void*                                          answer,
@@ -7877,7 +8094,8 @@ extern "C"
    * @brief Opaque structure that reads the content of a HTTP request body during a chunked HTTP transfer.
    * @ingroup Callbacks
    **/
-  typedef struct _OrthancPluginServerChunkedRequestReader_t OrthancPluginServerChunkedRequestReader;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.5.7")
+    _OrthancPluginServerChunkedRequestReader_t OrthancPluginServerChunkedRequestReader;
 
 
 
@@ -7892,13 +8110,13 @@ extern "C"
    * 
    * @see OrthancPluginRegisterChunkedRestCallback()
    * @param reader Memory location that must be filled with the newly-created reader.
-   * @param url The URI that is accessed.
+   * @param uri The URI that is accessed.
    * @param request The body of the HTTP request. Note that "body" and "bodySize" are not used.
    * @return 0 if success, or the error code if failure.
    **/
   typedef OrthancPluginErrorCode (*OrthancPluginServerChunkedRequestReaderFactory) (
     OrthancPluginServerChunkedRequestReader**  reader,
-    const char*                                url,
+    const char*                                uri,
     const OrthancPluginHttpRequest*            request);
 
   
@@ -7998,6 +8216,7 @@ extern "C"
    *
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.7")
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterChunkedRestCallback(
     OrthancPluginContext*                            context,
     const char*                                      pathRegularExpression,
@@ -8049,6 +8268,7 @@ extern "C"
    * OrthancPluginFreeString().
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.5.7")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGetTagName(
     OrthancPluginContext*  context,
     uint16_t               group,
@@ -8114,7 +8334,45 @@ extern "C"
     const char*         remoteAet,
     const char*         calledAet);
 
-  
+
+  /**
+   * @brief Callback executed by the storage commitment SCP (v2).
+   *
+   * Signature of a factory function that creates an object to handle
+   * one incoming storage commitment request.
+   *
+   * @remark The factory receives the list of the SOP class/instance
+   * UIDs of interest to the remote storage commitment SCU. This gives
+   * the factory the possibility to start some prefetch process
+   * upfront in the background, before the handler object is actually
+   * queried about the status of these DICOM instances.
+   *
+   * @param handler Output variable where the factory puts the handler object it created.
+   * @param jobId ID of the Orthanc job that is responsible for handling
+   * the storage commitment request. This job will successively look for the
+   * status of all the individual queried DICOM instances.
+   * @param transactionUid UID of the storage commitment transaction
+   * provided by the storage commitment SCU. It contains the value of the
+   * (0008,1195) DICOM tag.
+   * @param sopClassUids Array of the SOP class UIDs (0008,0016) that are queried by the SCU.
+   * @param sopInstanceUids Array of the SOP instance UIDs (0008,0018) that are queried by the SCU.
+   * @param countInstances Number of DICOM instances that are queried. This is the size
+   * of the `sopClassUids` and `sopInstanceUids` arrays.
+   * @param connection The DICOM connection from which the request originates.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  typedef OrthancPluginErrorCode (*OrthancPluginStorageCommitmentFactory2) (
+    void**              handler /* out */,
+    const char*         jobId,
+    const char*         transactionUid,
+    const char* const*  sopClassUids,
+    const char* const*  sopInstanceUids,
+    uint32_t            countInstances,
+    const OrthancPluginDicomConnection* connection);
+
+
   /**
    * @brief Callback to free one storage commitment SCP handler.
    * 
@@ -8174,6 +8432,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup DicomCallbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.6.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterStorageCommitmentScpCallback(
     OrthancPluginContext*                     context,
     OrthancPluginStorageCommitmentFactory     factory,
@@ -8235,6 +8494,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.6.1")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterIncomingDicomInstanceFilter(
     OrthancPluginContext*                     context,
     OrthancPluginIncomingDicomInstanceFilter  callback)
@@ -8298,6 +8558,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.10.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterIncomingCStoreInstanceFilter(
     OrthancPluginContext*                      context,
     OrthancPluginIncomingCStoreInstanceFilter  callback)
@@ -8375,6 +8636,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.10.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterReceivedInstanceCallback(
     OrthancPluginContext*                     context,
     OrthancPluginReceivedInstanceCallback     callback)
@@ -8398,6 +8660,7 @@ extern "C"
    * transfer syntax UID. This string must be freed by OrthancPluginFreeString().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.6.1")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGetInstanceTransferSyntaxUid(
     OrthancPluginContext*              context,
     const OrthancPluginDicomInstance*  instance)
@@ -8433,6 +8696,7 @@ extern "C"
    * the tag is missing, or "-1" in the case of an error.
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.6.1")
   ORTHANC_PLUGIN_INLINE int32_t OrthancPluginHasInstancePixelData(
     OrthancPluginContext*             context,
     const OrthancPluginDicomInstance* instance)
@@ -8483,6 +8747,7 @@ extern "C"
    * @return The newly allocated DICOM instance. It must be freed with OrthancPluginFreeDicomInstance().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginDicomInstance* OrthancPluginCreateDicomInstance(
     OrthancPluginContext*  context,
     const void*            buffer,
@@ -8521,6 +8786,7 @@ extern "C"
    * @param dicom The DICOM instance.
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE void  OrthancPluginFreeDicomInstance(
     OrthancPluginContext*        context, 
     OrthancPluginDicomInstance*  dicom)
@@ -8558,6 +8824,7 @@ extern "C"
    * @return The number of frames (will be zero in the case of an error).
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE uint32_t OrthancPluginGetInstanceFramesCount(
     OrthancPluginContext*             context,
     const OrthancPluginDicomInstance* instance)
@@ -8598,6 +8865,7 @@ extern "C"
    * @return 0 if success, or the error code if failure.
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginGetInstanceRawFrame(
     OrthancPluginContext*             context,
     OrthancPluginMemoryBuffer*        target,
@@ -8626,6 +8894,7 @@ extern "C"
    * @return The uncompressed image. It must be freed with OrthancPluginFreeImage().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginImage* OrthancPluginGetInstanceDecodedFrame(
     OrthancPluginContext*             context,
     const OrthancPluginDicomInstance* instance,
@@ -8665,6 +8934,7 @@ extern "C"
    * @return The newly allocated DICOM instance. It must be freed with OrthancPluginFreeDicomInstance().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginDicomInstance* OrthancPluginTranscodeDicomInstance(
     OrthancPluginContext*  context,
     const void*            buffer,
@@ -8703,6 +8973,7 @@ extern "C"
    * @return 0 if success, or the error code if failure.
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginSerializeDicomInstance(
     OrthancPluginContext*             context,
     OrthancPluginMemoryBuffer*        target,
@@ -8735,6 +9006,7 @@ extern "C"
    * @ingroup DicomInstance
    * @see OrthancPluginDicomBufferToJson()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGetInstanceAdvancedJson(
     OrthancPluginContext*              context,
     const OrthancPluginDicomInstance*  instance,
@@ -8778,6 +9050,7 @@ extern "C"
    * be freed by OrthancPluginFreeString().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGetInstanceDicomWebJson(
     OrthancPluginContext*                 context,
     const OrthancPluginDicomInstance*     instance,
@@ -8818,6 +9091,7 @@ extern "C"
    * be freed by OrthancPluginFreeString().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGetInstanceDicomWebXml(
     OrthancPluginContext*                 context,
     const OrthancPluginDicomInstance*     instance,
@@ -8890,6 +9164,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterTranscoderCallback(
     OrthancPluginContext*            context,
     OrthancPluginTranscoderCallback  callback)
@@ -8925,6 +9200,7 @@ extern "C"
    * @return 0 if success, or the error code if failure.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.7.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginCreateMemoryBuffer(
     OrthancPluginContext*       context,
     OrthancPluginMemoryBuffer*  target,
@@ -8963,6 +9239,7 @@ extern "C"
    * This string must be freed by OrthancPluginFreeString().
    * @ingroup Orthanc
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.8.1")
   ORTHANC_PLUGIN_INLINE char* OrthancPluginGenerateRestApiAuthorizationToken(
     OrthancPluginContext*  context)
   {
@@ -9009,6 +9286,7 @@ extern "C"
    * @return 0 if success, or the error code if failure.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.9.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginCreateMemoryBuffer64(
     OrthancPluginContext*         context,
     OrthancPluginMemoryBuffer64*  target,
@@ -9047,6 +9325,7 @@ extern "C"
    * @ingroup Callbacks
    * @deprecated New plugins should use OrthancPluginRegisterStorageArea3()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.9.0")
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterStorageArea2(
     OrthancPluginContext*          context,
     OrthancPluginStorageCreate     create,
@@ -9094,6 +9373,7 @@ extern "C"
    * @see OrthancPluginCreateDicom()
    * @see OrthancPluginDicomBufferToJson()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.9.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginCreateDicom2(
     OrthancPluginContext*          context,
     OrthancPluginMemoryBuffer*     target,
@@ -9162,6 +9442,7 @@ extern "C"
    * @see OrthancPluginRestApiGet2(), OrthancPluginRestApiPost(), OrthancPluginRestApiPut(), OrthancPluginRestApiDelete()
    * @ingroup Orthanc
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.9.2")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode  OrthancPluginCallRestApi(
     OrthancPluginContext*       context,
     OrthancPluginMemoryBuffer*  answerBody,
@@ -9200,7 +9481,8 @@ extern "C"
    * @brief Opaque structure that represents a WebDAV collection.
    * @ingroup Callbacks
    **/
-  typedef struct _OrthancPluginWebDavCollection_t OrthancPluginWebDavCollection;
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.10.1")
+    _OrthancPluginWebDavCollection_t OrthancPluginWebDavCollection;
 
 
   /**
@@ -9443,6 +9725,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.10.1")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterWebDavCollection(
     OrthancPluginContext*                        context,
     const char*                                  uri,
@@ -9476,6 +9759,7 @@ extern "C"
    * string, do not free it.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.11.1")
   ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetDatabaseServerIdentifier(
     OrthancPluginContext*  context)
   {
@@ -9518,6 +9802,7 @@ extern "C"
    * @param remove The callback function to remove a file from the custom storage area.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE void OrthancPluginRegisterStorageArea3(
     OrthancPluginContext*           context,
     OrthancPluginStorageCreate2     create,
@@ -9575,6 +9860,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Callbacks
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.0")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterDatabaseBackendV4(
     OrthancPluginContext*                   context,
     void*                                   backend,
@@ -9612,6 +9898,7 @@ extern "C"
    * @return The newly allocated DICOM instance. It must be freed with OrthancPluginFreeDicomInstance().
    * @ingroup DicomInstance
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.1")
   ORTHANC_PLUGIN_INLINE OrthancPluginDicomInstance* OrthancPluginLoadDicomInstance(
     OrthancPluginContext*               context,
     const char*                         instanceId,
@@ -9658,6 +9945,7 @@ extern "C"
    * @ingroup Toolbox
    * @see OrthancPluginSetMetricsValue()
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.1")
   ORTHANC_PLUGIN_INLINE void OrthancPluginSetMetricsIntegerValue(
     OrthancPluginContext*     context,
     const char*               name,
@@ -9685,6 +9973,7 @@ extern "C"
    * @return 0 if success, other value if error.
    * @ingroup Toolbox
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.2")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginSetCurrentThreadName(
     OrthancPluginContext*  context,
     const char*            threadName)
@@ -9718,6 +10007,7 @@ extern "C"
    * @param category The category.
    * @param level The level of the message.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.4")
   ORTHANC_PLUGIN_INLINE void OrthancPluginLogMessage(
     OrthancPluginContext* context,
     const char* message,
@@ -9756,6 +10046,7 @@ extern "C"
    * @see OrthancPluginSendStreamChunk()
    * @ingroup REST
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.6")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginStartStreamAnswer(
     OrthancPluginContext*    context,
     OrthancPluginRestOutput* output,
@@ -9783,6 +10074,7 @@ extern "C"
    * @see OrthancPluginStartStreamAnswer()
    * @ingroup REST
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.6")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginSendStreamChunk(
     OrthancPluginContext*    context,
     OrthancPluginRestOutput* output,
@@ -9847,6 +10139,7 @@ extern "C"
    * @param customDataSize The size of the custom data.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginAdoptDicomInstance(
     OrthancPluginContext*         context,
     OrthancPluginMemoryBuffer*    instanceId,        /* out */
@@ -9888,6 +10181,7 @@ extern "C"
    * @param attachmentUuid The UUID of the attachment of interest.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginGetAttachmentCustomData(
     OrthancPluginContext*         context,
     OrthancPluginMemoryBuffer*    customData,     /* out */
@@ -9920,6 +10214,7 @@ extern "C"
    * @param customDataSize The size of the value to store.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginSetAttachmentCustomData(
     OrthancPluginContext*         context,
     const char*                   attachmentUuid, /* in */
@@ -9953,6 +10248,7 @@ extern "C"
    * @param valueSize The length of the value to store.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginStoreKeyValue(
     OrthancPluginContext*         context,
     const char*                   storeId,  /* in */
@@ -9969,6 +10265,7 @@ extern "C"
     return context->InvokeService(context, _OrthancPluginService_StoreKeyValue, &params);
   }
 
+
   typedef struct
   {
     const char*                   storeId;
@@ -9983,6 +10280,7 @@ extern "C"
    * @param key The key of the value to store (note: storeId + key must be unique).
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginDeleteKeyValue(
     OrthancPluginContext*         context,
     const char*                   storeId, /* in */
@@ -9994,6 +10292,7 @@ extern "C"
 
     return context->InvokeService(context, _OrthancPluginService_DeleteKeyValue, &params);
   }
+
 
   typedef struct
   {
@@ -10014,6 +10313,7 @@ extern "C"
    * @param key The key of the value to retrieve from the store (note: storeId + key must be unique).
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginGetKeyValue(
     OrthancPluginContext*         context,
     uint8_t*                      found,   /* out */
@@ -10036,8 +10336,8 @@ extern "C"
    * a key-value store.
    * @ingroup Callbacks
    **/
-  typedef struct _OrthancPluginKeysValuesIterator_t OrthancPluginKeysValuesIterator;
-
+  typedef struct ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
+    _OrthancPluginKeysValuesIterator_t OrthancPluginKeysValuesIterator;
 
 
   typedef struct
@@ -10057,6 +10357,7 @@ extern "C"
    * @return The newly allocated iterator, or NULL in the case of an error.
    * The iterator must be freed by calling OrthancPluginFreeKeysValuesIterator().
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginKeysValuesIterator* OrthancPluginCreateKeysValuesIterator(
     OrthancPluginContext*  context,
     const char*            storeId)
@@ -10089,6 +10390,7 @@ extern "C"
    * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
    * @param iterator The iterator of interest.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE void  OrthancPluginFreeKeysValuesIterator(
     OrthancPluginContext*             context,
     OrthancPluginKeysValuesIterator*  iterator)
@@ -10116,6 +10418,7 @@ extern "C"
    * @param iterator The iterator of interest.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginKeysValuesIteratorNext(
     OrthancPluginContext*             context,
     uint8_t*                          done,     /* out */
@@ -10145,6 +10448,7 @@ extern "C"
    * @param iterator The iterator of interest.
    * @return The current key, or NULL in the case of an error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE const char* OrthancPluginKeysValuesIteratorGetKey(
     OrthancPluginContext*             context,
     OrthancPluginKeysValuesIterator*  iterator)
@@ -10184,6 +10488,7 @@ extern "C"
    * @param iterator The iterator of interest.
    * @return The current value, or NULL in the case of an error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginKeysValuesIteratorGetValue(
     OrthancPluginContext*             context,
     OrthancPluginMemoryBuffer*        target   /* out */,
@@ -10195,7 +10500,6 @@ extern "C"
 
     return context->InvokeService(context, _OrthancPluginService_KeysValuesIteratorGetValue, &params);
   }
-
 
 
   typedef struct
@@ -10214,6 +10518,7 @@ extern "C"
    * @param valueSize The size of the value to store.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginEnqueueValue(
     OrthancPluginContext*         context,
     const char*                   queueId,  /* in */
@@ -10227,6 +10532,7 @@ extern "C"
 
     return context->InvokeService(context, _OrthancPluginService_EnqueueValue, &params);
   }
+
 
   typedef struct
   {
@@ -10246,8 +10552,11 @@ extern "C"
    * @param queueId A unique identifier identifying both the plugin and the queue.
    * @param origin The position from where the value is dequeued (back for LIFO, front for FIFO).
    * @return 0 if success, other value if error.
+   * @deprecated There is a risk of losing a value if the consumer plugin crashes before it has processed
+   * the value. Use OrthancPluginReserveQueueValue() and OrthancPluginAcknowledgeQueueValue() if possible.
    **/
-  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginDequeueValue(
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
+  ORTHANC_PLUGIN_DEPRECATED ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginDequeueValue(
     OrthancPluginContext*         context,
     uint8_t*                      found,    /* out */
     OrthancPluginMemoryBuffer*    target,   /* out */
@@ -10263,6 +10572,7 @@ extern "C"
     return context->InvokeService(context, _OrthancPluginService_DequeueValue, &params);
   }
 
+
   typedef struct
   {
     const char*                   queueId;
@@ -10270,13 +10580,14 @@ extern "C"
   } _OrthancPluginGetQueueSize;
 
   /**
-   * @brief Get the number of elements in a queue.
+   * @brief Get the number of elements that are currently stored in a queue.
    *
    * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
    * @param queueId A unique identifier identifying both the plugin and the queue.
    * @param size The number of elements in the queue.
    * @return 0 if success, other value if error.
    **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.8")
   ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginGetQueueSize(
     OrthancPluginContext*         context,
     const char*                   queueId, /* in */
@@ -10289,10 +10600,578 @@ extern "C"
     return context->InvokeService(context, _OrthancPluginService_GetQueueSize, &params);
   }
 
+
+  typedef struct
+  {
+    const char*                   resourceId;
+    OrthancPluginStableStatus     stableStatus;
+    uint8_t*                      statusHasChanged;
+  } _OrthancPluginSetStableStatus;
+
+  /**
+   * @brief Change the "Stable" status of a resource.
+   *
+   * Forcing a resource to "Stable" if it is currently "Unstable" will
+   * change its "Stable" status AND trigger a new "Stable" change,
+   * which will also trigger listener callbacks.
+   *
+   * Forcing a resource to "Stable" if it is already "Stable" has no
+   * effect (no-op).
+   *
+   * Forcing a resource to "Unstable" will change its "Stable" status
+   * to "Unstable" AND reset its stabilization period, no matter its
+   * initial state.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param statusHasChanged Whether the status has changed (1) or not (0) during the execution of this command.
+   * @param resourceId The Orthanc identifier of the DICOM resource of interest.
+   * @param stableStatus The new stable status of the resource of interest.
+   * @return 0 if success, other value if error.
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.9")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginSetStableStatus(
+    OrthancPluginContext*         context,
+    uint8_t*                      statusHasChanged,  /* out */
+    const char*                   resourceId,  /* in */
+    OrthancPluginStableStatus     stableStatus /* in */)
+  {
+    _OrthancPluginSetStableStatus params;
+    params.resourceId = resourceId;
+    params.stableStatus= stableStatus;
+    params.statusHasChanged = statusHasChanged;
+
+    return context->InvokeService(context, _OrthancPluginService_SetStableStatus, &params);
+  }
+
+
+  /**
+   * @brief Callback to authenticate a HTTP request.
+   *
+   * Signature of a callback function that authenticates every incoming HTTP request.
+   *
+   * @param status The output status of the authentication.
+   * @param customPayload If status is `OrthancPluginHttpAuthenticationStatus_Granted`,
+   * a custom payload that will be provided to the HTTP handler callback.
+   * @param redirection If status is `OrthancPluginHttpAuthenticationStatus_Redirect`,
+   * a buffer filled with the path where to redirect the user (typically, a login page).
+   * The path is relative to the root of the Web server of Orthanc.
+   * @param uri The URI of interest (without the possible GET arguments).
+   * @param ip The IP address of the HTTP client.
+   * @param headersCount The number of HTTP headers.
+   * @param headersKeys The keys of the HTTP headers (always converted to low-case).
+   * @param headersValues The values of the HTTP headers.
+   * @param getCount For a GET request, the number of GET parameters.
+   * @param getKeys For a GET request, the keys of the GET parameters.
+   * @param getValues For a GET request, the values of the GET parameters.
+   * @return 0 if success, other value if error.
+   * @ingroup Callbacks
+   **/
+  typedef OrthancPluginErrorCode (*OrthancPluginHttpAuthentication) (
+    OrthancPluginHttpAuthenticationStatus*  status,         /* out */
+    OrthancPluginMemoryBuffer*              customPayload,  /* out */
+    OrthancPluginMemoryBuffer*              redirection,    /* out */
+    const char*                             uri,
+    const char*                             ip,
+    uint32_t                                headersCount,
+    const char* const*                      headersKeys,
+    const char* const*                      headersValues,
+    uint32_t                                getCount,
+    const char* const*                      getKeys,
+    const char* const*                      getValues);
+
+
+  typedef struct
+  {
+    OrthancPluginHttpAuthentication  callback;
+  } _OrthancPluginHttpAuthentication;
+
+  /**
+   * @brief Register a callback to handle HTTP authentication (and
+   * possibly HTTP authorization).
+   *
+   * This function installs a callback that is executed for each
+   * incoming HTTP request to handle HTTP authentication. At most one
+   * plugin can register such a callback. This gives the opportunity
+   * to the plugin to validate access tokens (such as a JWT), possibly
+   * redirecting the user to a login page. The authentication callback
+   * can generate a custom payload that will be provided to the
+   * subsequent REST handling callback (cf. `authenticationPayload` in
+   * `OrthancPluginHttpRequest`).
+   *
+   * If one plugin installs a HTTP authentication callback, the
+   * built-in HTTP authentication of Orthanc is disabled. This means
+   * that the "RegisteredUsers" and "AuthenticationEnabled"
+   * configuration options of Orthanc are totally ignored. In
+   * addition, tokens generated by
+   * OrthancPluginGenerateRestApiAuthorizationToken() become
+   * ineffective.
+   *
+   * This HTTP authentication callback can notably be used if some
+   * resource in the REST API must be available for public access, if
+   * the "RemoteAccessAllowed" configuration option is set to "true"
+   * (which necessitates bypassing the built-in HTTP authentication of
+   * Orthanc).
+   *
+   * In addition, the callback can handle HTTP authorization
+   * simultaneously with HTTP authentication, by reporting the
+   * "OrthancPluginHttpAuthenticationStatus_Forbidden" status. This
+   * corresponds to the behavior of callbacks installed using
+   * OrthancPluginRegisterIncomingHttpRequestFilter2(), but the latter
+   * callbacks do not provide access to the authentication payload.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param callback The HTTP authentication callback.
+   * @return 0 if success, other value if error.
+   * @ingroup Callbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.9")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterHttpAuthentication(
+    OrthancPluginContext*            context,
+    OrthancPluginHttpAuthentication  callback)
+  {
+    _OrthancPluginHttpAuthentication params;
+    params.callback = callback;
+
+    return context->InvokeService(context, _OrthancPluginService_RegisterHttpAuthentication, &params);
+  }
+
+
+  typedef struct
+  {
+    const char*               sourcePlugin;
+    const char*               userId;
+    OrthancPluginResourceType resourceType;
+    const char*               resourceId;
+    const char*               action;
+    const void*               logData;
+    uint32_t                  logDataSize;
+  } _OrthancPluginEmitAuditLog;
+
+
+  /**
+   * @brief Generate an audit log to signal security-related events.
+   *
+   * Generate an audit log that will be broadcasted to all the plugins
+   * that have registered a callback handler using
+   * OrthancPluginRegisterAuditLogHandler(). If no plugin has
+   * registered such a callback, the audit log is ignored.
+   *
+   * A typical handler would record the audit log in a database and/or
+   * relay the audit log to a message broker.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param sourcePlugin The name of the source plugin, to properly interpret the
+   * content of "action" and "logData".
+   * @param userId A string that uniquely identifies the user or
+   * entity that is executing the action on the resource.
+   * @param resourceType The type of the resource this audit log relates to.
+   * @param resourceId The resource this audit log relates to.
+   * @param action The action that was performed on the resource.
+   * @param logData A pointer to custom log data.
+   * @param logDataSize The size of the custom log data.
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.9")
+  ORTHANC_PLUGIN_INLINE void OrthancPluginEmitAuditLog(
+    OrthancPluginContext*     context,
+    const char*               sourcePlugin,
+    const char*               userId,
+    OrthancPluginResourceType resourceType,
+    const char*               resourceId,
+    const char*               action,
+    const void*               logData,
+    uint32_t                  logDataSize)
+  {
+    _OrthancPluginEmitAuditLog m;
+    m.sourcePlugin = sourcePlugin;
+    m.userId = userId;
+    m.resourceType = resourceType;
+    m.resourceId = resourceId;
+    m.action = action;
+    m.logData = logData;
+    m.logDataSize = logDataSize;
+    context->InvokeService(context, _OrthancPluginService_EmitAuditLog, &m);
+  }
+
+
+  /**
+   * @brief Callback to handle an audit log.
+   *
+   * Signature of a callback function that handles an audit log
+   * emitted by a source plugin.
+   *
+   * @param sourcePlugin The name of the source plugin. This information can
+   * be used to properly interpret the content of the "action" and
+   * "logData" arguments.
+   * @param userId A string uniquely identifying the user or entity that is executing the action on the resource.
+   * @param resourceType The type of the resource this log relates to.
+   * @param resourceId The resource this log relates to.
+   * @param action The action that is performed on the resource.
+   * @param logData A pointer to custom log data.
+   * @param logDataSize The size of the custom log data.
+   * @return 0 if success, other value if error.
+   * @ingroup Callbacks
+   **/
+  typedef OrthancPluginErrorCode (*OrthancPluginAuditLogHandler) (
+    const char*               sourcePlugin,
+    const char*               userId,
+    OrthancPluginResourceType resourceType,
+    const char*               resourceId,
+    const char*               action,
+    const void*               logData,
+    uint32_t                  logDataSize);
+
+  typedef struct
+  {
+    OrthancPluginAuditLogHandler  handler;
+  } _OrthancPluginAuditLogHandler;
+
+  /**
+   * @brief Register a callback to handle audit logs.
+   *
+   * This function installs a callback to listen to each audit log
+   * that is generated by some other plugin.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param handler The audit log handler.
+   * @return 0 if success, other value if error.
+   * @ingroup Callbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.9")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterAuditLogHandler(
+    OrthancPluginContext*            context,
+    OrthancPluginAuditLogHandler     handler)
+  {
+    _OrthancPluginAuditLogHandler params;
+    params.handler = handler;
+
+    return context->InvokeService(context, _OrthancPluginService_RegisterAuditLogHandler, &params);
+  }
+
+
+  typedef struct
+  {
+    uint8_t*                      found;
+    OrthancPluginMemoryBuffer*    target;
+    const char*                   queueId;
+    OrthancPluginQueueOrigin      origin;
+    uint32_t                      releaseTimeout;
+    uint64_t*                     valueId;
+  } _OrthancPluginReserveQueueValue;
+
+  /**
+   * @brief Reserve a value from a queue, which means that the message is not
+   *        available to other consumers.
+   *        The value is either:
+   *        - removed from the queue when one calls OrthancPluginAcknowledgeQueueValue()
+   *        - or made available again for consumers after the releaseTimeout has expired.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param found Pointer to a Boolean that is set to "true" iff. a value has been dequeued.
+   * @param target Memory buffer where to store the value that has been retrieved from the queue.
+   * It must be freed with OrthancPluginFreeMemoryBuffer().
+   * @param queueId A unique identifier identifying both the plugin and the queue.
+   * @param origin The position from where the value is dequeued (back for LIFO, front for FIFO).
+   * @param releaseTimeout Timeout in seconds. If the value is not acknowledged before this delay expires,
+   *                       the value is automatically released and made available for further calls to
+   *                       OrthancPluginDequeueValue() or OrthancPluginReserveQueueValue().
+   *                       This value cannot be equal to 0 second.
+   * @param valueId An opaque identifier for this value, to be subsequently provided to
+   * OrthancPluginAcknowledgeQueueValue().
+   * @return 0 if success, other value if error.
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginReserveQueueValue(
+    OrthancPluginContext*         context,
+    uint8_t*                      found,    /* out */
+    OrthancPluginMemoryBuffer*    target,   /* out */
+    uint64_t*                     valueId,  /* out */
+    const char*                   queueId,  /* in */
+    OrthancPluginQueueOrigin      origin,   /* in */
+    uint32_t                      releaseTimeout /* in */)
+  {
+    _OrthancPluginReserveQueueValue params;
+    params.found = found;
+    params.target = target;
+    params.queueId = queueId;
+    params.origin = origin;
+    params.valueId = valueId;
+    params.releaseTimeout = releaseTimeout;
+
+    return context->InvokeService(context, _OrthancPluginService_ReserveQueueValue, &params);
+  }
+
+  typedef struct
+  {
+    const char*                   queueId;
+    uint64_t                      valueId;
+  } _OrthancPluginAcknowledgeQueueValue;
+
+  /**
+   * @brief Acknowledge that a queue value has been properly consumed by the plugin
+   * and can be permanently removed from the queue.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param queueId A unique identifier identifying both the plugin and the queue.
+   * @param valueId The opaque identifier for the value provided by OrthancPluginReserveQueueValue().
+   * @return 0 if success, other value if error.
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginAcknowledgeQueueValue(
+    OrthancPluginContext*         context,
+    const char*                   queueId,  /* in */
+    uint64_t                      valueId  /* in */)
+  {
+    _OrthancPluginAcknowledgeQueueValue params;
+    params.queueId = queueId;
+    params.valueId = valueId;
+
+    return context->InvokeService(context, _OrthancPluginService_AcknowledgeQueueValue, &params);
+  }
+
+
+  typedef struct
+  {
+    const OrthancPluginDicomConnection*  connection;
+    const char**                         resultString;
+  } _OrthancPluginAccessDicomConnection;
+
+  /**
+   * @brief Get the remote AET of a DICOM connection.
+   *
+   * This function returns the Application Entity Title (AET) of the
+   * DICOM modality from which a DICOM connection originates.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param connection The connection of interest.
+   * @return The pointer to the AET, NULL in case of error.
+   * @ingroup DicomConnection
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetConnectionRemoteAet(
+    OrthancPluginContext*                context,
+    const OrthancPluginDicomConnection*  connection)
+  {
+    const char* result;
+
+    _OrthancPluginAccessDicomConnection params;
+    memset(&params, 0, sizeof(params));
+    params.resultString = &result;
+    params.connection = connection;
+
+    if (context->InvokeService(context, _OrthancPluginService_GetConnectionRemoteAet, &params) != OrthancPluginErrorCode_Success)
+    {
+      /* Error */
+      return NULL;
+    }
+    else
+    {
+      return result;
+    }
+  }
+
+
+  /**
+   * @brief Get the remote IP of a DICOM connection.
+   *
+   * This function returns the IP of the
+   * DICOM modality from which a DICOM connection originates.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param connection The connection of interest.
+   * @return The pointer to the IP, NULL in case of error.
+   * @ingroup DicomConnection
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetConnectionRemoteIp(
+    OrthancPluginContext*                context,
+    const OrthancPluginDicomConnection*  connection)
+  {
+    const char* result;
+
+    _OrthancPluginAccessDicomConnection params;
+    memset(&params, 0, sizeof(params));
+    params.resultString = &result;
+    params.connection = connection;
+
+    if (context->InvokeService(context, _OrthancPluginService_GetConnectionRemoteIp, &params) != OrthancPluginErrorCode_Success)
+    {
+      /* Error */
+      return NULL;
+    }
+    else
+    {
+      return result;
+    }
+  }
+
+
+  /**
+   * @brief Get the called AET of a DICOM connection.
+   *
+   * This function returns the AET that was called by the remote DICOM modality
+   * over a DICOM connection. This corresponds to one of the AETs used by Orthanc.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param connection The connection of interest.
+   * @return The pointer to the called AET, NULL in case of error.
+   * @ingroup DicomConnection
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE const char* OrthancPluginGetConnectionCalledAet(
+    OrthancPluginContext*                context,
+    const OrthancPluginDicomConnection*  connection)
+  {
+    const char* result;
+
+    _OrthancPluginAccessDicomConnection params;
+    memset(&params, 0, sizeof(params));
+    params.resultString = &result;
+    params.connection = connection;
+
+    if (context->InvokeService(context, _OrthancPluginService_GetConnectionCalledAet, &params) != OrthancPluginErrorCode_Success)
+    {
+      /* Error */
+      return NULL;
+    }
+    else
+    {
+      return result;
+    }
+  }
+
+
+  typedef struct
+  {
+    OrthancPluginWorklistCallback2 callback;
+  } _OrthancPluginWorklistCallback2;
+
+  /**
+   * @brief Register a callback to handle modality worklists requests (v2).
+   *
+   * This function registers a callback to handle C-Find SCP requests
+   * on modality worklists.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param callback The callback.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterWorklistCallback2(
+    OrthancPluginContext*          context,
+    OrthancPluginWorklistCallback2 callback)
+  {
+    _OrthancPluginWorklistCallback2 params;
+    params.callback = callback;
+
+    return context->InvokeService(context, _OrthancPluginService_RegisterWorklistCallback2, &params);
+  }
+
+
+  typedef struct
+  {
+    OrthancPluginFindCallback2 callback;
+  } _OrthancPluginFindCallback2;
+
+  /**
+   * @brief Register a callback to handle C-Find requests (v2).
+   *
+   * This function registers a callback to handle C-Find SCP requests
+   * that are not related to modality worklists.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param callback The callback.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterFindCallback2(
+    OrthancPluginContext*      context,
+    OrthancPluginFindCallback2  callback)
+  {
+    _OrthancPluginFindCallback2 params;
+    params.callback = callback;
+
+    return context->InvokeService(context, _OrthancPluginService_RegisterFindCallback2, &params);
+  }
+
+
+  typedef struct
+  {
+    OrthancPluginMoveCallback2  callback;
+    OrthancPluginGetMoveSize    getMoveSize;
+    OrthancPluginApplyMove      applyMove;
+    OrthancPluginFreeMove       freeMove;
+  } _OrthancPluginMoveCallback2;
+
+  /**
+   * @brief Register a callback to handle C-Move requests (v2).
+   *
+   * This function registers a callback to handle C-Move SCP requests.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param callback The main callback.
+   * @param getMoveSize Callback to read the number of C-Move suboperations.
+   * @param applyMove Callback to apply one C-Move suboperation.
+   * @param freeMove Callback to free the C-Move driver.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterMoveCallback2(
+    OrthancPluginContext*       context,
+    OrthancPluginMoveCallback2  callback,
+    OrthancPluginGetMoveSize    getMoveSize,
+    OrthancPluginApplyMove      applyMove,
+    OrthancPluginFreeMove       freeMove)
+  {
+    _OrthancPluginMoveCallback2 params;
+    params.callback = callback;
+    params.getMoveSize = getMoveSize;
+    params.applyMove = applyMove;
+    params.freeMove = freeMove;
+
+    return context->InvokeService(context, _OrthancPluginService_RegisterMoveCallback2, &params);
+  }
+
+
+  typedef struct
+  {
+    OrthancPluginStorageCommitmentFactory2    factory;
+    OrthancPluginStorageCommitmentDestructor  destructor;
+    OrthancPluginStorageCommitmentLookup      lookup;
+  } _OrthancPluginRegisterStorageCommitmentScpCallback2;
+
+  /**
+   * @brief Register a callback to handle incoming requests to the storage commitment SCP (v2).
+   *
+   * This function registers a callback to handle storage commitment SCP requests.
+   *
+   * @param context The Orthanc plugin context, as received by OrthancPluginInitialize().
+   * @param factory Factory function that creates the handler object
+   * for incoming storage commitment requests.
+   * @param destructor Destructor function to destroy the handler object.
+   * @param lookup Callback function to get the status of one DICOM instance.
+   * @return 0 if success, other value if error.
+   * @ingroup DicomCallbacks
+   **/
+  ORTHANC_PLUGIN_SINCE_SDK("1.12.10")
+  ORTHANC_PLUGIN_INLINE OrthancPluginErrorCode OrthancPluginRegisterStorageCommitmentScpCallback2(
+    OrthancPluginContext*                     context,
+    OrthancPluginStorageCommitmentFactory2    factory,
+    OrthancPluginStorageCommitmentDestructor  destructor,
+    OrthancPluginStorageCommitmentLookup      lookup)
+  {
+    _OrthancPluginRegisterStorageCommitmentScpCallback2 params;
+    params.factory = factory;
+    params.destructor = destructor;
+    params.lookup = lookup;
+    return context->InvokeService(context, _OrthancPluginService_RegisterStorageCommitmentScpCallback2, &params);
+  }
+
 #ifdef  __cplusplus
 }
 #endif
 
 
 /** @} */
-

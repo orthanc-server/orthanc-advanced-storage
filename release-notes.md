@@ -9,6 +9,9 @@ Fixes:
 - Fix #3: Added support for `InstitutionName` in the `NamingScheme`
 - Fix handling of exceptions in callbacks
 
+Internals:
+- use latest Queues methods in SDK 1.12.10
+
 
 0.2.3 (2025-12-08)
 ==================

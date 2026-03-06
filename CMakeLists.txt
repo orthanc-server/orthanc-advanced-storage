@@ -28,7 +28,7 @@ set(ORTHANC_PLUGIN_VERSION "mainline" CACHE STRING "plugin version 'mainline' or
 
 # This is the list of the versions of the Orthanc SDK against which
 # this plugin will compile
-set(ORTHANC_SDK_COMPATIBLE_VERSIONS "1.12.8")
+set(ORTHANC_SDK_COMPATIBLE_VERSIONS "1.12.8" "1.12.10")
 
 
 if (ORTHANC_PLUGIN_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
@@ -51,7 +51,7 @@ set(ORTHANC_FRAMEWORK_ROOT "" CACHE STRING "Path to the Orthanc source directory
 
 # Advanced parameters to fine-tune linking against system libraries
 set(USE_SYSTEM_ORTHANC_SDK ON CACHE BOOL "Use the system version of the Orthanc plugin SDK")
-set(ORTHANC_SDK_VERSION "1.12.8" CACHE STRING "Version of the Orthanc plugin SDK to use, if not using the system version (can be \"1.12.8\", or \"framework\")")
+set(ORTHANC_SDK_VERSION "1.12.10" CACHE STRING "Version of the Orthanc plugin SDK to use, if not using the system version (can be \"1.12.8\", \"1.12.10\", or \"framework\")")
 set(ORTHANC_FRAMEWORK_STATIC OFF CACHE BOOL "If linking against the Orthanc framework system library, indicates whether this library was statically linked")
 mark_as_advanced(ORTHANC_FRAMEWORK_STATIC)
 

@@ -42,6 +42,7 @@ namespace OrthancPlugins
     std::list<std::string>    parsedExtensions_;
     std::list<std::string>    skippedExtensions_;
     bool                      takeOwnership_;
+    bool                      enableVerboseLogs_;
     
     bool                      isRunning_;
     boost::thread             thread_;
@@ -59,7 +60,8 @@ namespace OrthancPlugins
                    unsigned int throttleDelayMs,
                    const std::list<std::string>& parsedExentions,
                    const std::list<std::string>& skippedExentions,
-                   bool takeOwnership);
+                   bool takeOwnership,
+                   bool enableVerboseLogs);
 
     ~FoldersIndexer();
 

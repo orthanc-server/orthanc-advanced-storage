@@ -86,6 +86,7 @@ static const char* const CONFIG_INDEXER_THROTTLE_DELAY_MS = "ThrottleDelayMs";
 static const char* const CONFIG_INDEXER_PARSED_EXTENSIONS = "ParsedExtensions";
 static const char* const CONFIG_INDEXER_SKIPPED_EXTENSIONS = "SkippedExtensions";
 static const char* const CONFIG_INDEXER_TAKE_OWNERSHIP = "TakeOwnership";
+static const char* const CONFIG_INDEXER_ENABLE_VERBOSE_LOGS = "EnableVerboseLogs";
 static const char* const CONFIG_DELAYED_DELETION = "DelayedDeletion";
 static const char* const CONFIG_DELAYED_DELETION_ENABLE = "Enable";
 static const char* const CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS = "ThrottleDelayMs";
@@ -800,6 +801,7 @@ extern "C"
           unsigned int indexerIntervalSeconds = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_INTERVAL, 10 /* 10 seconds by default */);
           unsigned int throttleDelayMs = indexerConfig.GetUnsignedIntegerValue(CONFIG_INDEXER_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
           bool takeOwnership = indexerConfig.GetBooleanValue(CONFIG_INDEXER_TAKE_OWNERSHIP, false);
+          bool enableVerboseLogs = indexerConfig.GetBooleanValue(CONFIG_INDEXER_ENABLE_VERBOSE_LOGS, false);
 
           if (!indexerConfig.LookupListOfStrings(indexedFolders, CONFIG_INDEXER_FOLDERS, true) ||
               indexedFolders.empty())
@@ -821,7 +823,7 @@ extern "C"
           LOG(WARNING) << "creating FoldersIndexer";
     
           boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership));
+          foldersIndexer_.reset(new FoldersIndexer(indexedFolders, indexerIntervalSeconds, throttleDelayMs, parsedExtensions, skippedExtensions, takeOwnership, enableVerboseLogs));
         }
         else
         {

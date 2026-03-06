@@ -82,10 +82,11 @@ namespace OrthancPlugins
   void AdoptFile(std::string& instanceId,
                  std::string& attachmentUuid,
                  OrthancPluginStoreStatus& storeStatus,
-                 const std::string& path, 
+                 const std::string& strPath, 
                  bool takeOwnership)
   {
-    CustomData cd = CustomData::CreateForAdoption(Orthanc::SystemToolbox::PathFromUtf8(path), takeOwnership);
+    fs::path path = Orthanc::SystemToolbox::PathFromUtf8(strPath);
+    CustomData cd = CustomData::CreateForAdoption(path, takeOwnership);
     
     std::string customDataString;
     cd.ToString(customDataString);
@@ -124,7 +125,7 @@ namespace OrthancPlugins
         owner.ToString(serializedOwner);
 
         // also store the owner info in the key value store in case the file is abandoned later
-        kvsAdoptedPath_.Store(path, serializedOwner);
+        kvsAdoptedPath_.Store(strPath, serializedOwner);
         
         attachmentUuidBuffer.ToString(attachmentUuid);
       }
@@ -135,32 +136,32 @@ namespace OrthancPlugins
     }
   }
 
-  void AbandonFile(const std::string& path)
+  void AbandonFile(const std::string& strPath)
   {
     // find attachment uuid from path -> lookup in DB the Key-Value Store provided by Orthanc
     std::string serializedPathOwner;
 
-    if (kvsAdoptedPath_.GetValue(serializedPathOwner, path))
+    if (kvsAdoptedPath_.GetValue(serializedPathOwner, strPath))
     {
       PathOwner owner = PathOwner::FromString(serializedPathOwner);
       std::string urlToDelete;
       owner.GetUrlForDeletion(urlToDelete);
 
-      kvsAdoptedPath_.DeleteKey(path);
+      kvsAdoptedPath_.DeleteKey(strPath);
 
       // trigger the deletion of this attachment
-      LOG(INFO) << "Deleting resource " << urlToDelete << " for path " << path;
+      LOG(INFO) << "Deleting resource " << urlToDelete << " for path " << strPath;
       OrthancPlugins::RestApiDelete(urlToDelete, true);
     }
     else
     {
-      throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, "The path could not be found: " + path);
+      throw Orthanc::OrthancException(Orthanc::ErrorCode_UnknownResource, "The path could not be found: " + strPath);
     }
   }
 
-  void MarkAdoptedFileAsDeleted(const std::string& path)
+  void MarkAdoptedFileAsDeleted(const std::string& strPath)
   {
-    kvsAdoptedPath_.DeleteKey(path);
+    kvsAdoptedPath_.DeleteKey(strPath);
   }
 
 }

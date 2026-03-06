@@ -1,6 +1,10 @@
 Pending changes
 ===============
 
+Changes:
+- Added a new `Indexer.EnableVerboseLogs` configuration to display the file/folder 
+  currently being processed by the indexer.
+
 Fixes:
 - Fix #3: Added support for `InstitutionName` in the `NamingScheme`
 

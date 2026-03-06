@@ -118,17 +118,24 @@ namespace OrthancPlugins
                                  unsigned int throttleDelayMs,
                                  const std::list<std::string>& parsedExentions,
                                  const std::list<std::string>& skippedExentions,
-                                 bool takeOwnership) :
+                                 bool takeOwnership,
+                                 bool enableVerboseLogs) :
     intervalInSeconds_(intervalInSeconds),
     throttleDelayMs_(throttleDelayMs),
     parsedExtensions_(parsedExentions),
     skippedExtensions_(skippedExentions),
     takeOwnership_(takeOwnership),
+    enableVerboseLogs_(enableVerboseLogs),
     isRunning_(false),
     kvsIndexedPaths_(KVS_ID_INDEXER_PATH)
   {
     for (std::list<std::string>::const_iterator it = folders.begin(); it != folders.end(); ++it)
     {
+      if (enableVerboseLogs_)
+      {
+        LOG(INFO) << "FoldersIndexer will monitor path '" << *it << "'";
+      }
+
       folders_.push_back(Orthanc::SystemToolbox::PathFromUtf8(*it));
     }
   }
@@ -225,6 +232,11 @@ namespace OrthancPlugins
                     }
                   }
 
+                  if (enableVerboseLogs_)
+                  {
+                    LOG(INFO) << "FoldersIndexer is processing the file '" << Orthanc::SystemToolbox::PathToUtf8(current->path()) << "'";
+                  }
+
                   ProcessFile(current->path());
                   
                   if (throttleDelayMs_ > 0)
@@ -239,6 +251,11 @@ namespace OrthancPlugins
                 break;
             
               case boost::filesystem::directory_file:
+                if (enableVerboseLogs_)
+                {
+                  LOG(INFO) << "FoldersIndexer will process the folder '" << Orthanc::SystemToolbox::PathToUtf8(current->path()) << "'";
+                }
+
                 pathStack.push(current->path());
                 break;
             
@@ -281,8 +298,9 @@ namespace OrthancPlugins
     uintmax_t fileSize = boost::filesystem::file_size(path);
 
     std::string serialized;
+    std::string strPath = Orthanc::SystemToolbox::PathToUtf8(path);
 
-    if (kvsIndexedPaths_.GetValue(serialized, Orthanc::SystemToolbox::PathToUtf8(path)))
+    if (kvsIndexedPaths_.GetValue(serialized, strPath))
     {
       // this is not a new file but it might have been modified
       IndexedPath indexedPath = IndexedPath::CreateFromSerializedString(serialized);
@@ -291,12 +309,12 @@ namespace OrthancPlugins
       {
         if (indexedPath.IsDicom())
         {
-          LOG(INFO) << "Indexer: a DICOM file has changed and will be re-adopted: " << Orthanc::SystemToolbox::PathToUtf8(path);
+          LOG(INFO) << "Indexer: a DICOM file has changed and will be re-adopted: " << strPath;
           // abandon previous file, we will re-adopt it
-          AbandonFile(Orthanc::SystemToolbox::PathToUtf8(path));
+          AbandonFile(strPath);
         }
 
-        kvsIndexedPaths_.DeleteKey(Orthanc::SystemToolbox::PathToUtf8(path));
+        kvsIndexedPaths_.DeleteKey(strPath);
       }
       else
       {
@@ -309,12 +327,12 @@ namespace OrthancPlugins
     std::string instanceId, attachmentUuid;
     OrthancPluginStoreStatus storeStatus;    
     
-    AdoptFile(instanceId, attachmentUuid, storeStatus, Orthanc::SystemToolbox::PathToUtf8(path), takeOwnership_);
+    AdoptFile(instanceId, attachmentUuid, storeStatus, strPath, takeOwnership_);
     bool isDicom = storeStatus == OrthancPluginStoreStatus_Success;
 
     if (isDicom)
     {
-      LOG(INFO) << "Indexer: adopted a new DICOM file: " << Orthanc::SystemToolbox::PathToUtf8(path);
+      LOG(INFO) << "Indexer: adopted a new DICOM file: " << strPath;
     }
 
     // and save it to the key value store
@@ -322,7 +340,7 @@ namespace OrthancPlugins
     std::string newIndexedPathSerialized;
     newIndexedPath.ToString(newIndexedPathSerialized);
 
-    kvsIndexedPaths_.Store(Orthanc::SystemToolbox::PathToUtf8(path), newIndexedPathSerialized);
+    kvsIndexedPaths_.Store(strPath, newIndexedPathSerialized);
   }
 
   void FoldersIndexer::LookupDeletedFiles()
@@ -336,9 +354,14 @@ namespace OrthancPlugins
       // in an Orthanc running at the same time) so we might miss a few values.
       // Hopefully, we'll get these values at the next run of the LookupDeletedFiles function.
 
-      const std::string path = iterator->GetKey();
-        
-      if (!Orthanc::SystemToolbox::IsRegularFile(path))
+      const std::string strPath = iterator->GetKey();
+
+      if (enableVerboseLogs_)
+      {
+        LOG(INFO) << "FoldersIndexer is checking if previously indexed file is still there '" << strPath << "'";
+      }
+
+      if (!Orthanc::SystemToolbox::IsRegularFile(Orthanc::SystemToolbox::PathFromUtf8(strPath)))
       {
         // the file has been deleted
         std::string serialized;
@@ -348,15 +371,15 @@ namespace OrthancPlugins
 
         if (indexedPath.IsDicom() && !indexedPath.HasBeenDeletedByOrthanc())
         {
-          LOG(INFO) << "Indexer: a DICOM file has been deleted, abandoning it: " << path;
-          AbandonFile(path);
+          LOG(INFO) << "Indexer: a DICOM file has been deleted, abandoning it: " << strPath;
+          AbandonFile(strPath);
         }
         else
         {
-          LOG(INFO) << "Indexer: a file has been deleted, removing it from the index: " << path;
+          LOG(INFO) << "Indexer: a file has been deleted, removing it from the index: " << strPath;
         }
 
-        kvsIndexedPaths_.DeleteKey(path);
+        kvsIndexedPaths_.DeleteKey(strPath);
       }
 
       if (throttleDelayMs_ > 0)

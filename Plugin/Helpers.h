@@ -38,10 +38,10 @@ namespace OrthancPlugins
   void AdoptFile(std::string& instanceId,
                  std::string& attachmentUuid,
                  OrthancPluginStoreStatus& storeStatus,
-                 const std::string& path, 
+                 const std::string& strPath, 
                  bool takeOwnership);
 
-  void AbandonFile(const std::string& path); 
+  void AbandonFile(const std::string& strPath); 
 
-  void MarkAdoptedFileAsDeleted(const std::string& path);
+  void MarkAdoptedFileAsDeleted(const std::string& strPath);
 }

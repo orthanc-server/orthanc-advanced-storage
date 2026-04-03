@@ -4,6 +4,7 @@ Pending changes
 Changes:
 - Added a new `Indexer.EnableVerboseLogs` configuration to display the file/folder 
   currently being processed by the indexer.
+- Added more logs to show the read/write bandwidth
 
 Fixes:
 - Fix #3: Added support for `InstitutionName` in the `NamingScheme`

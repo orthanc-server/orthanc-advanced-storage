@@ -118,6 +118,8 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      OrthancPluginCompressionType compressionType,
                                      const OrthancPluginDicomInstance* dicomInstance) ORTHANC_NOEXCEPT
 {
+  Orthanc::Toolbox::ElapsedTimer timer;
+
   try
   {
     Json::Value tags;
@@ -172,6 +174,9 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
 
     OrthancPluginCreateMemoryBuffer(OrthancPlugins::GetGlobalContext(), customData, seriliazedCustomDataString.size());
     memcpy(customData->data, seriliazedCustomDataString.data(), seriliazedCustomDataString.size());
+
+    LOG(INFO) << "Advanced Storage - Created attachment \"" << uuid << "\" (" << timer.GetHumanTransferSpeed(true, size) << ")";
+
     return OrthancPluginErrorCode_Success;
   }
   catch (Orthanc::OrthancException& e)
@@ -192,6 +197,8 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         const void* customData,
                                         uint32_t customDataSize) ORTHANC_NOEXCEPT
 {
+  Orthanc::Toolbox::ElapsedTimer timer;
+
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
 
@@ -225,6 +232,8 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
     LOG(ERROR) << "Unexpected error while reading: " << path;
     return OrthancPluginErrorCode_StorageAreaPlugin;
   }
+
+  LOG(INFO) << "Advanced Storage - Read attachment \"" << uuid << "\" (" << timer.GetHumanTransferSpeed(true, target->size) << ")";
 
   return OrthancPluginErrorCode_Success;
 }

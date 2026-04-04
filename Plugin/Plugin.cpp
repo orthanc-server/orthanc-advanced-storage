@@ -122,19 +122,19 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
 
   try
   {
-    Json::Value tags;
-
-    if (dicomInstance != NULL)
-    {
-      OrthancPlugins::DicomInstance dicom(dicomInstance);
-      dicom.GetSimplifiedJson(tags);
-    }
-
     const bool isCompressed = (compressionType != OrthancPluginCompressionType_None);
 
     boost::filesystem::path relativePath;
     if (!PathGenerator::IsDefaultNamingScheme())
     {
+      Json::Value tags;
+
+      if (dicomInstance != NULL)
+      {
+        OrthancPlugins::DicomInstance dicom(dicomInstance);
+        dicom.GetSimplifiedJson(tags);
+      }
+
       relativePath = PathGenerator::GetRelativePathFromTags(tags, uuid, type, isCompressed);
     }
     

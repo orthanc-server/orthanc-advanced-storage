@@ -12,6 +12,8 @@ Fixes:
 
 Internals:
 - use latest Queues methods in SDK 1.12.10
+- small opti: when creating an attachment, don't retrieve the DICOM tags if we use 
+  the default naming scheme
 
 
 0.2.3 (2025-12-08)

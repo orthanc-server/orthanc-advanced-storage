@@ -1,5 +1,4 @@
 - add unit test project
-- DeIdentifyLogs (since path can contain patient data)
 
 TODO_CUSTOM_DATA branch
 - add revisions and customData in all Database plugins

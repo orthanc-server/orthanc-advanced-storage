@@ -55,6 +55,8 @@ namespace OrthancPlugins
     void ScheduleFileDeletion(const std::string& path);
 
     uint64_t GetPendingDeletionFilesCount();
+
+    static void SetDeidentifyLogs(bool deidentifyLogs);
   };
 
 }

@@ -31,10 +31,16 @@
 #include "Helpers.h"
 #include <stack>
 
+static bool deidentifyLogs_ = true;
 
 namespace OrthancPlugins
 {
   static const char* QUEUE_ID_DELAYED_DELETER = "advst-delayed-deletion";
+
+  void DelayedFilesDeleter::SetDeidentifyLogs(bool deidentifyLogs)
+  {
+    deidentifyLogs_ = deidentifyLogs;
+  }
 
   DelayedFilesDeleter::DelayedFilesDeleter(unsigned int throttleDelayMs) :
     throttleDelayMs_(throttleDelayMs),
@@ -84,7 +90,13 @@ namespace OrthancPlugins
       {
         try
         {
-          LOG(INFO) << "Delayed deletion of file " << pathToDeleteUtf8Str;
+          std::string pathForLogs = pathToDeleteUtf8Str;
+          if (deidentifyLogs_) // we never know how the path was generated -> always deidentify
+          {
+            pathForLogs = "*** POTENTIAL PHI ***";
+          }
+
+          LOG(INFO) << "Delayed deletion of file " << pathForLogs;
           boost::filesystem::path pathToDelete = Orthanc::SystemToolbox::PathFromUtf8(pathToDeleteUtf8Str);
 
           fs::remove(pathToDelete);

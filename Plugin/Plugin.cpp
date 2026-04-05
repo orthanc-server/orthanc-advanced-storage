@@ -64,6 +64,7 @@ namespace fs = boost::filesystem;
 
 bool fsyncOnWrite_ = true;
 bool overwriteInstances_ = false;
+bool deidentifyLogs_ = true;
 size_t legacyPathLength = 39; // ex "/00/f7/00f7fd8b-47bd8c3a-ff917804-d180cdbc-40cf9527"
 
 using namespace OrthancPlugins;
@@ -76,6 +77,7 @@ static const char* const READ_ONLY = "ReadOnly";
 
 static const char* const CONFIG_SYNC_STORAGE_AREA = "SyncStorageArea";
 static const char* const CONFIG_OVERWRITE_INSTANCES = "OverwriteInstances";
+static const char* const CONFIG_DE_IDENTIFY_LOGS = "DeidentifyLogs";
 static const char* const CONFIG_STORAGE_DIRECTORY = "StorageDirectory";
 static const char* const CONFIG_ENABLE = "Enable";
 static const char* const CONFIG_NAMING_SCHEME = "NamingScheme";
@@ -119,6 +121,7 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      const OrthancPluginDicomInstance* dicomInstance) ORTHANC_NOEXCEPT
 {
   Orthanc::Toolbox::ElapsedTimer timer;
+  LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type);
 
   try
   {
@@ -153,8 +156,6 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
     std::string seriliazedCustomDataString;
     cd.ToString(seriliazedCustomDataString);
 
-    LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + Orthanc::SystemToolbox::PathToUtf8(absolutePath) + ")";
-
     if (fs::exists(absolutePath.parent_path()))
     {
       if (!fs::is_directory(absolutePath.parent_path()))
@@ -175,7 +176,13 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
     OrthancPluginCreateMemoryBuffer(OrthancPlugins::GetGlobalContext(), customData, seriliazedCustomDataString.size());
     memcpy(customData->data, seriliazedCustomDataString.data(), seriliazedCustomDataString.size());
 
-    LOG(INFO) << "Advanced Storage - Created attachment \"" << uuid << "\" (" << timer.GetHumanTransferSpeed(true, size) << ")";
+
+    std::string pathForLogs = Orthanc::SystemToolbox::PathToUtf8(absolutePath);
+    if (deidentifyLogs_ && !PathGenerator::IsDefaultNamingScheme())
+    {
+      pathForLogs = "*** POTENTIAL PHI ***";
+    }
+    LOG(INFO) << "Advanced Storage - Created attachment \"" << uuid << "\" - path = " << pathForLogs << " (" << timer.GetHumanTransferSpeed(true, size) << ")";
 
     return OrthancPluginErrorCode_Success;
   }
@@ -202,7 +209,13 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();
 
-  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + Orthanc::SystemToolbox::PathToUtf8(path) + ")";
+  std::string pathForLogs = Orthanc::SystemToolbox::PathToUtf8(path);
+  if (deidentifyLogs_) // we never know how the path was generated -> always deidentify
+  {
+    pathForLogs = "*** POTENTIAL PHI ***";
+  }
+
+  LOG(INFO) << "Advanced Storage - Reading range of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " << pathForLogs << ")";
 
   if (!Orthanc::SystemToolbox::IsRegularFile(path))
   {
@@ -248,9 +261,15 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
   boost::filesystem::path path = cd.GetAbsolutePath();
   std::string pathUtf8Str = Orthanc::SystemToolbox::PathToUtf8(path);
 
+  std::string pathForLogs = Orthanc::SystemToolbox::PathToUtf8(path);
+  if (deidentifyLogs_) // we never know how the path was generated -> always deidentify
+  {
+    pathForLogs = "*** POTENTIAL PHI ***";
+  }
+
   if (!cd.IsOwner())
   {
-    LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + pathUtf8Str + ") since the file has been adopted.";
+    LOG(INFO) << "NOT deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " << pathForLogs << ") since the file has been adopted.";
 
     // remove it from the adopted paths
     MarkAdoptedFileAsDeleted(pathUtf8Str);
@@ -286,13 +305,13 @@ OrthancPluginErrorCode StorageRemove(const char* uuid,
 
         if (delayedFilesDeleter_.get() != NULL)
         {
-          LOG(INFO) << "Scheduling later deletion of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + pathUtf8Str + ")";
+          LOG(INFO) << "Scheduling later deletion of attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " << pathForLogs << ")";
           delayedFilesDeleter_->ScheduleFileDeletion(pathUtf8Str);
           return OrthancPluginErrorCode_Success;
         }
       }
 
-      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " + pathUtf8Str + ")";
+      LOG(INFO) << "Deleting attachment \"" << uuid << "\" of type " << static_cast<int>(type) << " (path = " << pathForLogs << ")";
 
       fs::remove(path);
 
@@ -764,6 +783,8 @@ extern "C"
       {
         fsyncOnWrite_ = orthancConfiguration.GetBooleanValue(CONFIG_SYNC_STORAGE_AREA, true);
         overwriteInstances_ = orthancConfiguration.GetBooleanValue(CONFIG_OVERWRITE_INSTANCES, false);
+        deidentifyLogs_ = orthancConfiguration.GetBooleanValue(CONFIG_DE_IDENTIFY_LOGS, true);
+        DelayedFilesDeleter::SetDeidentifyLogs(deidentifyLogs_);
 
         const Json::Value& pluginJson = advancedStorageConfiguration.GetJson();
 

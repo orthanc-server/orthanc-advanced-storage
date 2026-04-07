@@ -38,7 +38,7 @@ namespace OrthancPlugins
   {
     unsigned int              throttleDelayMs_;
     
-    bool                      isRunning_;
+    volatile bool             isRunning_;
     boost::thread             thread_;
     OrthancPlugins::Queue     queueFilesToDelete_;
 

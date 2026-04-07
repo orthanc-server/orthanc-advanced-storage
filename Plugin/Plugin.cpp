@@ -792,7 +792,7 @@ extern "C"
         {
           PathGenerator::SetNamingScheme(advancedStorageConfiguration.GetStringValue(CONFIG_NAMING_SCHEME, "OrthancDefault"), overwriteInstances_);
         }
-        catch (Orthanc::OrthancException& ex)
+        catch (const Orthanc::OrthancException& ex)
         {
           return -1;
         }
@@ -838,7 +838,7 @@ extern "C"
               {
                 CustomData::SetCurrentWriteStorageId(multipleStoragesJson[CONFIG_MULTIPLE_STORAGES_CURRENT_WRITE_STORAGE].asString());
               }
-              catch (Orthanc::OrthancException& ex)
+              catch (const Orthanc::OrthancException& ex)
               {
                 return -1;
               }

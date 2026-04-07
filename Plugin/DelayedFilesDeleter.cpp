@@ -44,6 +44,7 @@ namespace OrthancPlugins
 
   DelayedFilesDeleter::DelayedFilesDeleter(unsigned int throttleDelayMs) :
     throttleDelayMs_(throttleDelayMs),
+    isRunning_(false),
     queueFilesToDelete_(QUEUE_ID_DELAYED_DELETER)
   {
   }

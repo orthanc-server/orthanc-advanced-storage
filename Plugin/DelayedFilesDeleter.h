@@ -43,7 +43,8 @@ namespace OrthancPlugins
     OrthancPlugins::Queue     queueFilesToDelete_;
 
   public:
-    DelayedFilesDeleter(unsigned int throttleDelayMs);
+    explicit DelayedFilesDeleter(unsigned int throttleDelayMs);
+
     ~DelayedFilesDeleter();
 
     void Start();

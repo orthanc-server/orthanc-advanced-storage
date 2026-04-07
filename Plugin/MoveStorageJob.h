@@ -22,8 +22,10 @@
 
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
-#include <json/json.h>
 
+#include <Compatibility.h>
+
+#include <json/json.h>
 #include <vector>
 
 namespace OrthancPlugins
@@ -45,15 +47,16 @@ namespace OrthancPlugins
     bool MoveAttachment(const CustomData& currentCustomData, const std::string& targetStorageId);
 
     void UpdateContent();
+
   public:
     MoveStorageJob(const std::string& targetStorageId,
                   const std::vector<std::string>& instances,
                   const Json::Value& resourceForJobContent);
 
-    virtual OrthancPluginJobStepStatus Step();
+    virtual OrthancPluginJobStepStatus Step() ORTHANC_OVERRIDE;
 
-    virtual void Stop(OrthancPluginJobStopReason reason);
+    virtual void Stop(OrthancPluginJobStopReason reason) ORTHANC_OVERRIDE;
     
-    virtual void Reset();
+    virtual void Reset() ORTHANC_OVERRIDE;
   };
 }

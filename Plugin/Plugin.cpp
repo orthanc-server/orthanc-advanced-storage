@@ -677,7 +677,7 @@ extern "C"
       {
         OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestPayload, job.release());
       }
-      catch (Orthanc::OrthancException ex)
+      catch (Orthanc::OrthancException& ex)
       {
         LOG(ERROR) << "Failed to move instances: " << ex.What();
         // ANSWER buffer

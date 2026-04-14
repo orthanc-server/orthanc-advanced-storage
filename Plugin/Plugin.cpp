@@ -30,12 +30,25 @@
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
+#include "CustomData.h"
+#include "PathGenerator.h"
+#include "PathOwner.h"
+#include "MoveStorageJob.h"
+#include "Constants.h"
+#include "Helpers.h"
+#include "FoldersIndexer.h"
+#include "DelayedFilesDeleter.h"
+
 #include <Compatibility.h>
 #include <OrthancException.h>
 #include <Logging.h>
 #include <SystemToolbox.h>
 #include <Toolbox.h>
 #include <DicomFormat/DicomInstanceHasher.h>
+
+#if ORTHANC_FRAMEWORK_VERSION_IS_ABOVE(1, 12, 11)
+#  include <ElapsedTimer.h>
+#endif
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -50,15 +63,6 @@
 #include <map>
 #include <list>
 #include <time.h>
-
-#include "CustomData.h"
-#include "PathGenerator.h"
-#include "PathOwner.h"
-#include "MoveStorageJob.h"
-#include "Constants.h"
-#include "Helpers.h"
-#include "FoldersIndexer.h"
-#include "DelayedFilesDeleter.h"
 
 namespace fs = boost::filesystem;
 
@@ -120,7 +124,12 @@ OrthancPluginErrorCode StorageCreate(OrthancPluginMemoryBuffer* customData,
                                      OrthancPluginCompressionType compressionType,
                                      const OrthancPluginDicomInstance* dicomInstance) ORTHANC_NOEXCEPT
 {
+#if ORTHANC_FRAMEWORK_VERSION_IS_ABOVE(1, 12, 11)
+  Orthanc::ElapsedTimer timer;
+#else
   Orthanc::Toolbox::ElapsedTimer timer;
+#endif
+
   LOG(INFO) << "Advanced Storage - creating attachment \"" << uuid << "\" of type " << static_cast<int>(type);
 
   try
@@ -204,7 +213,11 @@ OrthancPluginErrorCode StorageReadRange(OrthancPluginMemoryBuffer64* target,
                                         const void* customData,
                                         uint32_t customDataSize) ORTHANC_NOEXCEPT
 {
+#if ORTHANC_FRAMEWORK_VERSION_IS_ABOVE(1, 12, 11)
+  Orthanc::ElapsedTimer timer;
+#else
   Orthanc::Toolbox::ElapsedTimer timer;
+#endif
 
   CustomData cd = CustomData::FromString(uuid, customData, customDataSize);
   boost::filesystem::path path = cd.GetAbsolutePath();

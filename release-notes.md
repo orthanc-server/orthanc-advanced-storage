@@ -1,5 +1,5 @@
-Pending changes
-===============
+0.3.0 (2026-04-13)
+==================
 
 Changes:
 - Added a new `Indexer.EnableVerboseLogs` configuration to display the file/folder 

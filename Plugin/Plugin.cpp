@@ -102,6 +102,7 @@ static const char* const CONFIG_INDEXER_ENABLE_VERBOSE_LOGS = "EnableVerboseLogs
 static const char* const CONFIG_DELAYED_DELETION = "DelayedDeletion";
 static const char* const CONFIG_DELAYED_DELETION_ENABLE = "Enable";
 static const char* const CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS = "ThrottleDelayMs";
+static const char* const CONFIG_DELAYED_DELETION_MAX_DELETION_TIME = "MaxDeletionTime";
 
 static const char* const PLUGIN_STATUS_DELAYED_DELETION_ACTIVE = "DelayedDeletionIsActive";
 static const char* const PLUGIN_STATUS_DELAYED_DELETION_PENDING_FILES = "FilesPendingDeletion";
@@ -913,12 +914,13 @@ extern "C"
 
           if (delayedDeletionConfig.GetBooleanValue(CONFIG_DELAYED_DELETION_ENABLE, false))
           {
-            unsigned int throttleDelayMs = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS, 0 /* 0 ms seconds by default */);
-
-            LOG(WARNING) << "creating DelayedDeleter";
+            unsigned int throttleDelayMs = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_THROTTLE_DELAY_MS, 0 /* 0 ms by default */);
+            unsigned int maxDeletionTime = delayedDeletionConfig.GetUnsignedIntegerValue(CONFIG_DELAYED_DELETION_MAX_DELETION_TIME, 5 /* 5 seconds by default */);
+            
+            LOG(WARNING) << "creating DelayedDeleter (ThrottleDelayMs = " << throttleDelayMs << " ms, MaxDeletionTime = " << maxDeletionTime << "s) ";
     
             boost::mutex::scoped_lock lock(mutex_); // because we modify/access foldersIndexer and delayedDeletion pointer
-            delayedFilesDeleter_.reset(new DelayedFilesDeleter(throttleDelayMs));
+            delayedFilesDeleter_.reset(new DelayedFilesDeleter(throttleDelayMs, maxDeletionTime));
           }
           else
           {

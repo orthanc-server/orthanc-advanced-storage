@@ -170,17 +170,9 @@ endif()
 
 if (STANDALONE_BUILD)
   add_definitions(-DORTHANC_STANDALONE=1)
-  set(ADDITIONAL_RESOURCES
-    DEFAULT_CONFIGURATION  ${CMAKE_SOURCE_DIR}/Plugin/Configuration.json
-    )
 else()
   add_definitions(-DORTHANC_STANDALONE=0)
 endif()
-
-EmbedResources(
-  --no-upcase-check
-  ${ADDITIONAL_RESOURCES}
-  )
 
 
 # As the embedded resources are shared by both the "UnitTests" and the

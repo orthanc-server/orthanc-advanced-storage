@@ -42,8 +42,9 @@ namespace OrthancPlugins
     deidentifyLogs_ = deidentifyLogs;
   }
 
-  DelayedFilesDeleter::DelayedFilesDeleter(unsigned int throttleDelayMs) :
+  DelayedFilesDeleter::DelayedFilesDeleter(unsigned int throttleDelayMs, unsigned int maxDeletionTimeSec) :
     throttleDelayMs_(throttleDelayMs),
+    maxDeletionTimeSec_(maxDeletionTimeSec),
     isRunning_(false),
     queueFilesToDelete_(QUEUE_ID_DELAYED_DELETER)
   {
@@ -84,19 +85,19 @@ namespace OrthancPlugins
 
 #if ORTHANC_PLUGINS_VERSION_IS_ABOVE(1, 12, 10)
       uint64_t valueId;      
-      while (queueFilesToDelete_.ReserveFront(pathToDeleteUtf8Str, valueId, 5) && isRunning_)
+      while (queueFilesToDelete_.ReserveFront(pathToDeleteUtf8Str, valueId, maxDeletionTimeSec_) && isRunning_)
 #else
       while (queueFilesToDelete_.DequeueFront(pathToDeleteUtf8Str) && isRunning_)
 #endif
       {
+        std::string pathForLogs = pathToDeleteUtf8Str;
+        if (deidentifyLogs_) // we never know how the path was generated -> always deidentify
+        {
+          pathForLogs = "*** POTENTIAL PHI ***";
+        }
+  
         try
         {
-          std::string pathForLogs = pathToDeleteUtf8Str;
-          if (deidentifyLogs_) // we never know how the path was generated -> always deidentify
-          {
-            pathForLogs = "*** POTENTIAL PHI ***";
-          }
-
           LOG(INFO) << "Delayed deletion of file " << pathForLogs;
           boost::filesystem::path pathToDelete = Orthanc::SystemToolbox::PathFromUtf8(pathToDeleteUtf8Str);
 

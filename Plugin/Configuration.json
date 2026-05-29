@@ -132,7 +132,16 @@
 
       // Interval (in milliseconds) between the deletion of 2 scheduled files.  This reduces the
       // workload on the disk while deleting files.
-      "ThrottleDelayMs": 5
+      "ThrottleDelayMs": 0,
+
+      // Maximum duration (in seconds) a deletion can take before signaling an error like
+      // DELAYED-DELETER: Unknown resource: Unable to acknowledge a queue value. Has it expired ?
+      // DELAYED-DELETER: Exception in database back-end: Unknown resource
+      // These errors may occur on systems were an anti-virus can dramatically slow down
+      // the disk performance and the errors can be ignored because the file deletion will be retried
+      // later anyway.  In this case, it is recommended to increase this configuration
+      // to a higher value to avoid spurious error messages.
+      "MaxDeletionTime": 5
     }
   }
 }

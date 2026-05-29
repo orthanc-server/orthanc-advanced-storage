@@ -37,13 +37,14 @@ namespace OrthancPlugins
   class DelayedFilesDeleter
   {
     unsigned int              throttleDelayMs_;
+    unsigned int              maxDeletionTimeSec_;
     
     volatile bool             isRunning_;
     boost::thread             thread_;
     OrthancPlugins::Queue     queueFilesToDelete_;
 
   public:
-    explicit DelayedFilesDeleter(unsigned int throttleDelayMs);
+    explicit DelayedFilesDeleter(unsigned int throttleDelayMs, unsigned int maxDeletionTimeSec);
 
     ~DelayedFilesDeleter();
 

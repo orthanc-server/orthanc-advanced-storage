@@ -1,8 +1,17 @@
+Pending changes in the mainline
+===============================
+
+Changes:
+- Added a new `DelayedDeletion.MaxDeletionTime` configuration to
+  avoid spurious error messages on systems where the disk can e.g. when
+  an anti-virus can block the file system for a few seconds.
+
+
 0.3.1 (2026-04-23)
 ==================
 
 Internals:
-- Fix compilation with fox macOS compilers.
+- Fix compilation with some macOS compilers.
 
 
 0.3.0 (2026-04-13)

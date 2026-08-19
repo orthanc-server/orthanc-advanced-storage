@@ -3,7 +3,8 @@ Pending changes in the mainline
 
 Changes:
 - Added a new `DelayedDeletion.MaxDeletionTime` configuration to
-  avoid spurious error messages on systems where the disk can e.g. when
+  avoid spurious error messages on systems that might require a
+  lot of time to delete a file e.g. when
   an anti-virus can block the file system for a few seconds.
 
 

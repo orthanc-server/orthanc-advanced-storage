@@ -57,7 +57,9 @@ namespace OrthancPlugins
 
   static void DelayedFilesDeleterWorkerThread(DelayedFilesDeleter* delayedDeleter)
   {
-    OrthancPluginSetCurrentThreadName(OrthancPlugins::GetGlobalContext(), "DELAYED-DELETER");
+#if ORTHANC_FRAMEWORK_VERSION_IS_ABOVE(1, 13, 0)
+    Orthanc::Logging::ScopedCurrentThreadNameSetter setter("DELAYED-DELETER");
+#endif
 
     delayedDeleter->WorkerThread();
   }

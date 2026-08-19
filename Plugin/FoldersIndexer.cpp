@@ -147,7 +147,9 @@ namespace OrthancPlugins
 
   static void FoldersIndexerWorkerThread(FoldersIndexer* indexer)
   {
-    OrthancPluginSetCurrentThreadName(OrthancPlugins::GetGlobalContext(), "INDEXER");
+#if ORTHANC_FRAMEWORK_VERSION_IS_ABOVE(1, 13, 0)
+    Orthanc::Logging::ScopedCurrentThreadNameSetter setter("INDEXER");
+#endif
 
     indexer->WorkerThread();
   }

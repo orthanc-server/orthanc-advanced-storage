@@ -179,6 +179,8 @@ if (ORTHANC_FRAMEWORK_SOURCE STREQUAL "hg" OR
         set(ORTHANC_FRAMEWORK_MD5 "d5e1ba442104c89a24013cb859a9d6bf")
       elseif (ORTHANC_FRAMEWORK_VERSION STREQUAL "1.12.11")
         set(ORTHANC_FRAMEWORK_MD5 "389b273b64b513ba8fc3233f34201cc1")
+      elseif (ORTHANC_FRAMEWORK_VERSION STREQUAL "1.13.0")
+        set(ORTHANC_FRAMEWORK_MD5 "cc95d3e509612b541e10e91c831fbfe3")
 
       # Below this point are development snapshots that were used to
       # release some plugin, before an official release of the Orthanc
@@ -238,6 +240,11 @@ if (ORTHANC_FRAMEWORK_SOURCE STREQUAL "hg" OR
         # for HttpClient that returns the answer body in case of HTTP error
         set(ORTHANC_FRAMEWORK_PRE_RELEASE ON)
         set(ORTHANC_FRAMEWORK_MD5 "665f8aa70d7c5091bc20da37cf664910")
+      elseif (ORTHANC_FRAMEWORK_VERSION STREQUAL "004b351797fe")
+        # PixelsMasker 0.1.2 (framework post-1.12.11)
+        # for ScopedThreadNameSetter
+        set(ORTHANC_FRAMEWORK_PRE_RELEASE ON)
+        set(ORTHANC_FRAMEWORK_MD5 "f078ca997217b831ab3f6741f08a8c07")
       endif()
     endif()
   endif()

@@ -1,5 +1,5 @@
-Pending changes in the mainline
-===============================
+0.3.2 (2026-08-25)
+==================
 
 Changes:
 - Added a new `DelayedDeletion.MaxDeletionTime` configuration to

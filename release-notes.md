@@ -7,6 +7,10 @@ Changes:
   lot of time to delete a file e.g. when
   an anti-virus can block the file system for a few seconds.
 
+Fixes:
+- [Fix #4](https://github.com/orthanc-server/orthanc-advanced-storage/issues/4): 
+  Moving an attachment to the storage it is already on deletes the only copy of the file.
+
 
 0.3.1 (2026-04-23)
 ==================

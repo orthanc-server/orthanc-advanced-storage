@@ -89,10 +89,23 @@ namespace OrthancPlugins
       return false;
     }
 
+    if (currentCustomData.GetStorageId() == targetStorageId)
+    {
+      LOG(INFO) << "Moving attachment: " << currentCustomData.GetUuid() << " is already stored on storage \"" << targetStorageId << "\", nothing to do.";
+      return true;
+    }
+
     CustomData newCustomData = CustomData::CreateForMoveStorage(currentCustomData, targetStorageId);
 
     fs::path currentPath = currentCustomData.GetAbsolutePath();
     fs::path newPath = newCustomData.GetAbsolutePath();
+
+    if (currentPath == newPath)
+    {
+      // Safety guard: never copy/delete a file onto itself, this would delete the only copy of the file
+      LOG(INFO) << "Moving attachment: " << currentCustomData.GetUuid() << " is already stored at " << Orthanc::SystemToolbox::PathToUtf8(currentPath) << ", nothing to do.";
+      return true;
+    }
 
     try
     {
@@ -145,7 +158,7 @@ namespace OrthancPlugins
           LOG(ERROR) << errorDetails_;
           return false;
         }
-        // else, files are identical -> continue and write the customData in DB
+        // else, files are identical, the file was already there for some reason (migration, recovery ?) -> continue and write the customData in DB
       }
       else
       {
